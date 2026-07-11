@@ -237,7 +237,7 @@
   }
 
   /* ── terminal penceresi ───────────────────────── */
-  #terminal-window{
+  .term-window{
     display:none;
     width:100%;
     max-width:560px;
@@ -245,61 +245,61 @@
     background:#020305;
     box-shadow: 0 0 40px rgba(0,82,255,0.06);
   }
-  #terminal-window .win-head{
+  .term-window .win-head{
     display:flex;
     align-items:center;
     gap:8px;
     padding:11px 14px;
     border-bottom:1px solid #0d1524;
   }
-  #terminal-window .win-head .dot{
+  .term-window .win-head .dot{
     width:8px; height:8px; border-radius:50%;
     background:#0d1524;
   }
-  #terminal-window .win-head .dot.live{
+  .term-window .win-head .dot.live{
     background:#0052FF;
     box-shadow:0 0 6px #0052FF;
     animation: blink 1.6s steps(1) infinite;
   }
-  #terminal-window .win-head .win-title{
+  .term-window .win-head .win-title{
     margin-left:auto;
     font-size:11px;
     letter-spacing:1px;
     color:#3A4658;
   }
 
-  #terminal{
+  .terminal-output{
     width:100%;
     color:#0052FF;
     font-size:clamp(0.78rem, 2.1vw, 0.92rem);
     line-height:1.75;
     padding:18px 18px 22px;
   }
-  #terminal .row{
+  .terminal-output .row{
     white-space:pre-wrap;
     word-break:break-word;
   }
-  #terminal .status::before{
+  .terminal-output .status::before{
     content:'> ';
     opacity:0.7;
   }
-  #terminal .label{
+  .terminal-output .label{
     color:#3A5DBF;
   }
-  #terminal .value{
+  .terminal-output .value{
     color:#0052FF;
     font-weight:bold;
   }
-  #terminal .err{
+  .terminal-output .err{
     color:#FF4444;
   }
-  #terminal .note{
+  .terminal-output .note{
     font-size:0.68rem;
     color:#2a3550;
     margin-bottom:2px;
     font-style:italic;
   }
-  #terminal .warn{
+  .terminal-output .warn{
     color:#5C8CFF;
     opacity:0.85;
   }
@@ -323,41 +323,41 @@
   #sound-toggle:hover{
     border-color:#0052FF;
   }
-  #terminal .section{
+  .terminal-output .section{
     margin-top:16px;
     margin-bottom:6px;
     font-size:0.72rem;
     letter-spacing:3px;
     color:#22406B;
   }
-  #terminal .section:first-child{
+  .terminal-output .section:first-child{
     margin-top:0;
   }
-  #terminal .section::before{
+  .terminal-output .section::before{
     content:'// ';
   }
 
   /* ── airdrop vurgu kutusu ─────────────────────── */
-  #terminal .airdrop-box{
+  .terminal-output .airdrop-box{
     margin-top:18px;
     padding:14px 16px;
     border:1px solid #0052FF;
     box-shadow: 0 0 20px rgba(0,82,255,0.18) inset, 0 0 24px rgba(0,82,255,0.12);
     background: rgba(0,82,255,0.04);
   }
-  #terminal .airdrop-box .ad-label{
+  .terminal-output .airdrop-box .ad-label{
     font-size:0.68rem;
     letter-spacing:3px;
     color:#5C8CFF;
     margin-bottom:4px;
   }
-  #terminal .airdrop-box .ad-amount{
+  .terminal-output .airdrop-box .ad-amount{
     font-size:clamp(1.2rem, 4vw, 1.6rem);
     font-weight:bold;
     color:#0052FF;
     text-shadow:0 0 16px rgba(0,82,255,0.5);
   }
-  #terminal .airdrop-box .ad-note{
+  .terminal-output .airdrop-box .ad-note{
     font-size:0.68rem;
     color:#3A4658;
     margin-top:6px;
@@ -507,6 +507,7 @@
   <div class="glitch-text menu-title" data-text="ACCESS GRANTED">ACCESS GRANTED</div>
   <button class="menu-btn" id="menu-checker-btn">Airdrop Checker</button>
   <button class="menu-btn" id="menu-connect-btn">Connect Wallet</button>
+  <button class="menu-btn" id="menu-gmgn-btn">GM / GN</button>
 
   <div id="airdrop-tasks">
     <div class="tasks-label">// RECOMMENDED ACTIONS</div>
@@ -523,13 +524,25 @@
 <!-- ── EKRAN 3: SCANNER (mevcut sayfa) ──────────────────────── -->
 <div id="stage" class="screen">
   <input class="field" id="addr" type="text" placeholder="/BASE ADDRESS" spellcheck="false" autocomplete="off">
-  <div id="terminal-window">
+  <div id="terminal-window" class="term-window">
     <div class="win-head">
       <span class="dot live"></span><span class="dot"></span><span class="dot"></span>
       <span class="win-title">root@base:~/scan</span>
     </div>
-    <div id="terminal"></div>
+    <div id="terminal" class="terminal-output"></div>
   </div>
+</div>
+
+<!-- ── EKRAN 4: GM / GN ──────────────────────────────────────── -->
+<div id="screen-gmgn" class="screen">
+  <div id="gmgn-terminal-window" class="term-window" style="display:block;">
+    <div class="win-head">
+      <span class="dot live"></span><span class="dot"></span><span class="dot"></span>
+      <span class="win-title">root@base:~/gmgn</span>
+    </div>
+    <div id="gmgn-terminal" class="terminal-output"></div>
+  </div>
+  <button class="menu-btn" id="gmgn-back-btn" style="margin-top:20px; width:min(80vw,320px);">← Back</button>
 </div>
 
 <div id="brand-footer">
@@ -552,7 +565,7 @@ const USDC_CONTRACT = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 // GM/GN kontratı — deploy edildikten sonra adres buraya girilecek.
 // Boş olduğu sürece GM/GN butonları "yakında aktif" mesajı gösterir.
-const GMGN_CONTRACT_ADDRESS = ""; // <-- deploy sonrası buraya kontrat adresini yapıştır
+const GMGN_CONTRACT_ADDRESS = "0xfd506cf3e7969348c41c8fbeecad7e72dd8427ae";
 const GMGN_ABI = [
   "function gm() external",
   "function gn() external",
@@ -574,6 +587,7 @@ const BASE_CHAIN_PARAMS = {
 const input = document.getElementById('addr');
 const terminalWindow = document.getElementById('terminal-window');
 const terminal = document.getElementById('terminal');
+let activeTerminal = terminal; // GM/GN gibi başka ekranlarda hedef değişebilir
 
 /* ── açılış glitch flaşı temizliği ────────────────────────────── */
 const bootOverlay = document.getElementById('boot-overlay');
@@ -609,12 +623,14 @@ document.getElementById('menu-checker-btn').addEventListener('click', () => {
 
 const connectBtn = document.getElementById('menu-connect-btn');
 const airdropTasks = document.getElementById('airdrop-tasks');
+let connectedAddress = null;
 
 connectBtn.addEventListener('click', async () => {
   connectBtn.disabled = true;
   connectBtn.textContent = 'Connecting...';
   try{
     const address = await connectWallet();
+    connectedAddress = address;
     connectBtn.textContent = `Connected: ${shortAddr(address)}`;
     airdropTasks.classList.add('visible');
   }catch(err){
@@ -622,6 +638,36 @@ connectBtn.addEventListener('click', async () => {
     alert(err.message || 'Bağlantı başarısız.');
   }
   connectBtn.disabled = false;
+});
+
+const gmgnTerminal = document.getElementById('gmgn-terminal');
+const screenGmgn = document.getElementById('screen-gmgn');
+const gmgnBtn = document.getElementById('menu-gmgn-btn');
+const gmgnBackBtn = document.getElementById('gmgn-back-btn');
+
+gmgnBtn.addEventListener('click', async () => {
+  gmgnBtn.disabled = true;
+  try{
+    if(!connectedAddress){
+      gmgnBtn.textContent = 'Connecting...';
+      connectedAddress = await connectWallet();
+      connectBtn.textContent = `Connected: ${shortAddr(connectedAddress)}`;
+      airdropTasks.classList.add('visible');
+    }
+    activeTerminal = gmgnTerminal;
+    activeTerminal.innerHTML = '';
+    goToScreen(screenGmgn);
+    await addFieldRow('Wallet:', shortAddr(connectedAddress));
+    await showGmGnSection(connectedAddress);
+  }catch(err){
+    alert(err.message || 'Bağlantı başarısız.');
+  }
+  gmgnBtn.textContent = 'GM / GN';
+  gmgnBtn.disabled = false;
+});
+
+gmgnBackBtn.addEventListener('click', () => {
+  goToScreen(screenMenu);
 });
 
 function wait(min, max){
@@ -665,7 +711,7 @@ soundToggle.addEventListener('click', () => {
 async function addRow(text, cls){
   const div = document.createElement('div');
   div.className = 'row ' + (cls || '');
-  terminal.appendChild(div);
+  activeTerminal.appendChild(div);
 
   const cursor = document.createElement('span');
   cursor.className = 'type-cursor';
@@ -685,7 +731,7 @@ async function addRow(text, cls){
 async function addFieldRow(label, value){
   const full = `${label} ${value}`;
   await addRow(full, 'value');
-  const rows = terminal.querySelectorAll('.row');
+  const rows = activeTerminal.querySelectorAll('.row');
   const last = rows[rows.length - 1];
   last.innerHTML = `<span class="label">${label}</span> ${value}`;
 }
@@ -703,7 +749,7 @@ async function apiCall(params, attempt = 1){
         const row = document.createElement('div');
         row.className = 'row warn';
         row.textContent = '⏳ Sunucu yoğun, lütfen bekleyin — otomatik tekrar deneniyor...';
-        terminal.appendChild(row);
+        activeTerminal.appendChild(row);
       }
       await wait(1400 * attempt, 1800 * attempt);
       return apiCall(params, attempt + 1);
@@ -722,7 +768,7 @@ async function apiCall(params, attempt = 1){
         const row = document.createElement('div');
         row.className = 'row warn';
         row.textContent = '⏳ Sunucu yoğun, lütfen bekleyin — otomatik tekrar deneniyor...';
-        terminal.appendChild(row);
+        activeTerminal.appendChild(row);
       }
       await wait(1400 * attempt, 1800 * attempt);
       return apiCall(params, attempt + 1);
@@ -978,7 +1024,7 @@ function addSection(title){
   const div = document.createElement('div');
   div.className = 'row section';
   div.textContent = title;
-  terminal.appendChild(div);
+  activeTerminal.appendChild(div);
 }
 
 async function showAirdropBreakdown(data){
@@ -1001,14 +1047,14 @@ async function showAirdropBox(data){
     <div class="ad-amount">~${fmtNum(data.airdrop.amount, 0)} $BASE</div>
     <div class="ad-note">Tier: ${data.airdrop.tier}${data.basename ? ' · Basename bonus applied' : ''} — tahmini, resmi değil</div>
   `;
-  terminal.appendChild(box);
+  activeTerminal.appendChild(box);
 
   await wait(500, 700);
   const shareBtn = document.createElement('button');
   shareBtn.className = 'share-btn';
   shareBtn.textContent = 'Share on X';
   shareBtn.addEventListener('click', () => shareResult(data));
-  terminal.appendChild(shareBtn);
+  activeTerminal.appendChild(shareBtn);
 
   await askIncreaseAirdrop();
 }
@@ -1082,7 +1128,7 @@ async function showGmGnSection(walletAddress){
 
   wrap.appendChild(gmBtn);
   wrap.appendChild(gnBtn);
-  terminal.appendChild(wrap);
+  activeTerminal.appendChild(wrap);
 
   const doCheckIn = async (type, btn) => {
     btn.disabled = true;
@@ -1120,7 +1166,7 @@ async function askIncreaseAirdrop(){
 
   wrap.appendChild(yesBtn);
   wrap.appendChild(noBtn);
-  terminal.appendChild(wrap);
+  activeTerminal.appendChild(wrap);
 
   return new Promise((resolve) => {
     const finish = async (answer) => {
@@ -1299,14 +1345,15 @@ async function showResults(data){
 
   const cursor = document.createElement('span');
   cursor.className = 'end-cursor';
-  terminal.appendChild(cursor);
+  activeTerminal.appendChild(cursor);
 }
 
 async function startScan(address){
   input.style.display = 'none';
   document.body.classList.add('scanning');
   terminalWindow.style.display = 'block';
-  terminal.innerHTML = '';
+  activeTerminal = terminal;
+  activeTerminal.innerHTML = '';
   rateLimitNotified = false;
 
   const statusPromise = runStatusSequence();
