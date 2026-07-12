@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
 <style>
   *{ margin:0; padding:0; box-sizing:border-box; }
   html, body{
@@ -314,10 +316,20 @@
     text-align:center;
   }
   #panda-emoji{
-    font-size:3rem;
-    line-height:1;
-    filter: drop-shadow(0 0 14px rgba(0,82,255,0.35));
-    transition: font-size .25s ease;
+    width:220px;
+    height:220px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    filter: drop-shadow(0 0 18px rgba(0,82,255,0.3));
+  }
+  #panda-emoji canvas{
+    display:block;
+  }
+  #panda-loading{
+    font-size:0.7rem;
+    color:#3A5DBF;
+    letter-spacing:1px;
   }
   #panda-stage-label{
     margin-top:10px;
@@ -617,7 +629,7 @@
       <span class="win-title">root@base:~/panda</span>
     </div>
     <div id="panda-body">
-      <div id="panda-emoji">🥚</div>
+      <div id="panda-emoji"><span id="panda-loading">// loading panda...</span></div>
       <div id="panda-stage-label">Egg</div>
       <div id="panda-mood">// connecting...</div>
       <div id="panda-countdown"></div>
@@ -671,12 +683,14 @@ const PANDA_ABI = [
 const PANDA_COOLDOWN_SECONDS = 6 * 60 * 60;
 const PANDA_STREAK_WINDOW_SECONDS = 12 * 60 * 60;
 const PANDA_STAGES = [
-  { emoji: '🥚', label: 'Egg' },
-  { emoji: '🐼', label: 'Cub', size: '2.2rem' },
-  { emoji: '🐼', label: 'Young Panda', size: '3rem' },
-  { emoji: '🐼', label: 'Panda', size: '3.8rem' },
-  { emoji: '🐼', label: 'Elder Panda', size: '4.6rem' }
+  { label: 'Egg', scale: 0.5, isEgg: true },
+  { label: 'Cub', scale: 0.65 },
+  { label: 'Young Panda', scale: 0.85 },
+  { label: 'Panda', scale: 1.05 },
+  { label: 'Elder Panda', scale: 1.25 }
 ];
+const PANDA_MODEL_URL = './BlueBabyPanda.glb';
+
 
 const BASE_CHAIN_ID_HEX = "0x2105"; // 8453 — Base mainnet
 const BASE_CHAIN_PARAMS = {
@@ -802,6 +816,118 @@ function pandaStageFromFeedCount(feedCount){
   return PANDA_DISPLAY_THRESHOLDS.length;
 }
 
+/* ── 3D panda sahnesi (Three.js + GLTF) ───────────────────────────── */
+let pandaThreeReady = false;
+let pandaScene, pandaCamera, pandaRenderer, pandaModel, pandaMixer, pandaClock;
+let pandaRafId = null;
+let pandaCurrentStageScale = 0.65;
+let pandaMoodAmplitude = 0.035;
+let pandaMoodSpeed = 1.3;
+let pandaBounceUntil = 0;
+
+function initPandaThree(){
+  if(pandaThreeReady) return;
+  pandaThreeReady = true;
+
+  const container = document.getElementById('panda-emoji');
+  const size = 220;
+
+  pandaScene = new THREE.Scene();
+  pandaCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  pandaCamera.position.set(0, 1.1, 4.2);
+
+  pandaRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  pandaRenderer.setSize(size, size);
+  pandaRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  container.innerHTML = '';
+  container.appendChild(pandaRenderer.domElement);
+
+  pandaScene.add(new THREE.AmbientLight(0xffffff, 0.95));
+  const keyLight = new THREE.DirectionalLight(0x99bbff, 1.1);
+  keyLight.position.set(2, 3, 4);
+  pandaScene.add(keyLight);
+  const rimLight = new THREE.DirectionalLight(0x0052ff, 0.7);
+  rimLight.position.set(-3, 2, -2);
+  pandaScene.add(rimLight);
+
+  pandaClock = new THREE.Clock();
+
+  const loader = new THREE.GLTFLoader();
+  loader.load(
+    PANDA_MODEL_URL,
+    (gltf) => {
+      pandaModel = gltf.scene;
+
+      const box = new THREE.Box3().setFromObject(pandaModel);
+      const size3 = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      pandaModel.position.sub(center);
+
+      const maxDim = Math.max(size3.x, size3.y, size3.z) || 1;
+      const baseScale = 2.1 / maxDim;
+      pandaModel.userData.baseScale = baseScale;
+      pandaModel.scale.setScalar(baseScale * pandaCurrentStageScale);
+
+      pandaScene.add(pandaModel);
+
+      if(gltf.animations && gltf.animations.length){
+        pandaMixer = new THREE.AnimationMixer(pandaModel);
+        pandaMixer.clipAction(gltf.animations[0]).play();
+      }
+    },
+    undefined,
+    (err) => {
+      console.error('Panda model yüklenemedi:', err);
+      container.innerHTML = '<span id="panda-loading">🐼</span>';
+    }
+  );
+}
+
+function setPandaMood(mood){
+  if(mood === 'happy'){ pandaMoodAmplitude = 0.05; pandaMoodSpeed = 1.8; }
+  else if(mood === 'sad'){ pandaMoodAmplitude = 0.02; pandaMoodSpeed = 0.8; }
+  else { pandaMoodAmplitude = 0.035; pandaMoodSpeed = 1.3; }
+}
+
+function triggerPandaBounce(){
+  pandaBounceUntil = (pandaClock ? pandaClock.getElapsedTime() : 0) + 0.7;
+}
+
+function animatePandaFrame(){
+  pandaRafId = requestAnimationFrame(animatePandaFrame);
+  const delta = pandaClock ? pandaClock.getDelta() : 0.016;
+  if(pandaMixer) pandaMixer.update(delta);
+
+  if(pandaModel){
+    const t = pandaClock.getElapsedTime();
+    const breathe = 1 + Math.sin(t * pandaMoodSpeed) * pandaMoodAmplitude;
+    const base = pandaModel.userData.baseScale * pandaCurrentStageScale;
+
+    let bounce = 0;
+    if(t < pandaBounceUntil){
+      const progress = 1 - (pandaBounceUntil - t) / 0.7;
+      bounce = Math.sin(progress * Math.PI) * 0.35;
+    }
+
+    pandaModel.scale.setScalar(base * breathe);
+    pandaModel.position.y = bounce;
+    pandaModel.rotation.y = Math.sin(t * 0.4) * 0.18;
+  }
+
+  if(pandaRenderer && pandaScene && pandaCamera){
+    pandaRenderer.render(pandaScene, pandaCamera);
+  }
+}
+
+function startPandaAnimation(){
+  initPandaThree();
+  if(!pandaRafId) animatePandaFrame();
+}
+
+function stopPandaAnimation(){
+  if(pandaRafId){ cancelAnimationFrame(pandaRafId); pandaRafId = null; }
+}
+
 function renderPandaStats(s){
   const feedCount = Number(s.feedCount);
   const level = pandaStageFromFeedCount(feedCount);
@@ -810,9 +936,19 @@ function renderPandaStats(s){
   const lastFed = Number(s.lastFed);
 
   const stage = PANDA_STAGES[Math.min(level, PANDA_STAGES.length - 1)];
-  pandaEmoji.textContent = stage.emoji;
-  pandaEmoji.style.fontSize = stage.size || '2rem';
   pandaStageLabel.textContent = stage.label;
+
+  if(stage.isEgg){
+    stopPandaAnimation();
+    pandaEmoji.innerHTML = '<span style="font-size:3rem;">🥚</span>';
+  }else{
+    pandaCurrentStageScale = stage.scale;
+    if(pandaEmoji.querySelector('canvas') === null){
+      pandaEmoji.innerHTML = '<span id="panda-loading">// loading panda...</span>';
+      pandaThreeReady = false; // container was cleared, force re-init into it
+    }
+    startPandaAnimation();
+  }
 
   const nextThreshold = level < PANDA_STAGES.length - 1
     ? PANDA_DISPLAY_THRESHOLDS[level]
@@ -838,27 +974,32 @@ function renderPandaStats(s){
     const sinceLastFed = lastFed === 0 ? Infinity : now - lastFed;
     const remain = lastFed === 0 ? 0 : (lastFed + PANDA_COOLDOWN_SECONDS) - now;
 
-    let moodText, canFeedNow;
+    let moodText, canFeedNow, moodKey;
     if(lastFed === 0){
       moodText = '// never fed — waiting for first meal';
       canFeedNow = true;
+      moodKey = 'neutral';
       pandaCountdown.textContent = 'Ready now ✅';
     }else if(sinceLastFed < PANDA_COOLDOWN_SECONDS){
       moodText = '😊 Full';
       canFeedNow = false;
+      moodKey = 'happy';
       pandaCountdown.textContent = `Next feed in: ${formatCountdown(remain)}`;
     }else if(sinceLastFed < PANDA_STREAK_WINDOW_SECONDS){
       moodText = '🙂 Hungry — ready to feed';
       canFeedNow = true;
+      moodKey = 'neutral';
       pandaCountdown.textContent = 'Ready now ✅';
     }else{
       moodText = '😢 Starving — streak will reset';
       canFeedNow = true;
+      moodKey = 'sad';
       pandaCountdown.textContent = 'Ready now ✅';
     }
     pandaMood.textContent = moodText;
     pandaFeedBtn.disabled = !canFeedNow;
     pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃' : 'Fed — come back later';
+    if(!stage.isEgg) setPandaMood(moodKey);
 
     if(canFeedNow && pandaCountdownTimer){
       clearInterval(pandaCountdownTimer);
@@ -920,6 +1061,8 @@ pandaFeedBtn.addEventListener('click', async () => {
     pandaFeedBtn.textContent = 'Feeding...';
     await tx.wait();
     await loadPandaScreen(connectedAddress);
+    setPandaMood('happy');
+    triggerPandaBounce();
   }catch(err){
     const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
     alert(reason);
@@ -930,6 +1073,7 @@ pandaFeedBtn.addEventListener('click', async () => {
 
 pandaBackBtn.addEventListener('click', () => {
   if(pandaCountdownTimer){ clearInterval(pandaCountdownTimer); pandaCountdownTimer = null; }
+  stopPandaAnimation();
   goToScreen(screenMenu);
 });
 
