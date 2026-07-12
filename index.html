@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 <style>
   *{ margin:0; padding:0; box-sizing:border-box; }
   html, body{
@@ -309,15 +310,56 @@
 
   /* ── panda beslenme ekranı ─────────────────────────────────────── */
   #panda-body{
-    padding:28px 20px 24px;
+    padding:0 0 24px;
     display:flex;
     flex-direction:column;
     align-items:center;
     text-align:center;
   }
+  #panda-viewport{
+    position:relative;
+    width:100%;
+    background:
+      linear-gradient(rgba(0,82,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,82,255,0.05) 1px, transparent 1px);
+    background-size:22px 22px;
+    background-color:#010204;
+    border-bottom:1px solid #0d1524;
+    padding:10px 12px 4px;
+    overflow:hidden;
+  }
+  #panda-viewport .hud-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    font-size:0.55rem;
+    letter-spacing:1px;
+    color:#3A5DBF;
+    line-height:1.6;
+  }
+  #panda-viewport .hud-tc{
+    position:absolute;
+    left:50%;
+    top:10px;
+    transform:translateX(-50%);
+    color:#5C8CFF;
+    text-align:center;
+    white-space:nowrap;
+  }
+  #panda-viewport .hud-tr{
+    color:#2E7D4F;
+    text-align:right;
+  }
+  #panda-viewport .hud-dim{
+    color:#22406B;
+  }
+  #panda-viewport .hud-br{
+    text-align:right;
+    color:#5C8CFF;
+  }
   #panda-emoji{
-    width:220px;
-    height:220px;
+    width:100%;
+    height:230px;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -325,6 +367,7 @@
   }
   #panda-emoji canvas{
     display:block;
+    touch-action:none;
   }
   #panda-loading{
     font-size:0.7rem;
@@ -332,7 +375,7 @@
     letter-spacing:1px;
   }
   #panda-stage-label{
-    margin-top:10px;
+    margin-top:16px;
     font-size:0.85rem;
     letter-spacing:2px;
     color:#0052FF;
@@ -629,7 +672,21 @@
       <span class="win-title">root@base:~/panda</span>
     </div>
     <div id="panda-body">
-      <div id="panda-emoji"><span id="panda-loading">// loading panda...</span></div>
+      <div id="panda-viewport">
+        <div class="hud-row hud-top">
+          <span class="hud-corner hud-tl">BASE://PANDA</span>
+          <span class="hud-corner hud-tc"><span id="panda-hud-title">specimen 0x01 — idle scan</span></span>
+          <span class="hud-corner hud-tr">CHAIN: BASE · STATUS: ONLINE</span>
+        </div>
+        <div id="panda-emoji"><span id="panda-loading">// loading panda...</span></div>
+        <div class="hud-row hud-bottom">
+          <span class="hud-corner hud-bl">
+            breath <span id="panda-hud-breath">sin·1.3</span><br>
+            drag <span class="hud-dim">rotate</span> · scroll <span class="hud-dim">zoom</span>
+          </span>
+          <span class="hud-corner hud-br">uptime <span id="panda-hud-uptime">00:00</span></span>
+        </div>
+      </div>
       <div id="panda-stage-label">Egg</div>
       <div id="panda-mood">// connecting...</div>
       <div id="panda-countdown"></div>
@@ -818,39 +875,64 @@ function pandaStageFromFeedCount(feedCount){
 
 /* ── 3D panda sahnesi (Three.js + GLTF) ───────────────────────────── */
 let pandaThreeReady = false;
-let pandaScene, pandaCamera, pandaRenderer, pandaModel, pandaMixer, pandaClock;
+let pandaScene, pandaCamera, pandaRenderer, pandaModel, pandaMixer, pandaClock, pandaControls;
 let pandaRafId = null;
 let pandaCurrentStageScale = 0.65;
 let pandaMoodAmplitude = 0.035;
 let pandaMoodSpeed = 1.3;
 let pandaBounceUntil = 0;
+const pandaHudBreath = document.getElementById('panda-hud-breath');
+const pandaHudUptime = document.getElementById('panda-hud-uptime');
 
 function initPandaThree(){
   if(pandaThreeReady) return;
   pandaThreeReady = true;
 
   const container = document.getElementById('panda-emoji');
-  const size = 220;
+  const width = container.clientWidth || 300;
+  const height = container.clientHeight || 230;
 
   pandaScene = new THREE.Scene();
-  pandaCamera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  pandaCamera = new THREE.PerspectiveCamera(32, width / height, 0.1, 100);
   pandaCamera.position.set(0, 1.1, 4.2);
 
   pandaRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-  pandaRenderer.setSize(size, size);
+  pandaRenderer.setSize(width, height);
   pandaRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   container.innerHTML = '';
   container.appendChild(pandaRenderer.domElement);
 
-  pandaScene.add(new THREE.AmbientLight(0xffffff, 0.95));
-  const keyLight = new THREE.DirectionalLight(0x99bbff, 1.1);
+  if(THREE.OrbitControls){
+    pandaControls = new THREE.OrbitControls(pandaCamera, pandaRenderer.domElement);
+    pandaControls.enableDamping = true;
+    pandaControls.dampingFactor = 0.08;
+    pandaControls.enablePan = false;
+    pandaControls.minDistance = 2.5;
+    pandaControls.maxDistance = 7;
+    pandaControls.target.set(0, 0.4, 0);
+    pandaControls.update();
+  }
+
+  pandaScene.add(new THREE.AmbientLight(0xffffff, 1.1));
+  const keyLight = new THREE.DirectionalLight(0xaaccff, 1.3);
   keyLight.position.set(2, 3, 4);
   pandaScene.add(keyLight);
-  const rimLight = new THREE.DirectionalLight(0x0052ff, 0.7);
+  const rimLight = new THREE.DirectionalLight(0x0052ff, 0.9);
   rimLight.position.set(-3, 2, -2);
   pandaScene.add(rimLight);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  fillLight.position.set(0, -2, 3);
+  pandaScene.add(fillLight);
 
   pandaClock = new THREE.Clock();
+
+  window.addEventListener('resize', () => {
+    if(!pandaRenderer || !container.clientWidth) return;
+    const w = container.clientWidth, h = container.clientHeight;
+    pandaCamera.aspect = w / h;
+    pandaCamera.updateProjectionMatrix();
+    pandaRenderer.setSize(w, h);
+  });
 
   const loader = new THREE.GLTFLoader();
   loader.load(
@@ -889,17 +971,21 @@ function setPandaMood(mood){
   else { pandaMoodAmplitude = 0.035; pandaMoodSpeed = 1.3; }
 }
 
+let pandaElapsed = 0;
+
 function triggerPandaBounce(){
-  pandaBounceUntil = (pandaClock ? pandaClock.getElapsedTime() : 0) + 0.7;
+  pandaBounceUntil = pandaElapsed + 0.7;
 }
 
 function animatePandaFrame(){
   pandaRafId = requestAnimationFrame(animatePandaFrame);
-  const delta = pandaClock ? pandaClock.getDelta() : 0.016;
+  const delta = pandaClock ? Math.min(pandaClock.getDelta(), 0.1) : 0.016;
+  pandaElapsed += delta;
   if(pandaMixer) pandaMixer.update(delta);
+  if(pandaControls) pandaControls.update();
 
   if(pandaModel){
-    const t = pandaClock.getElapsedTime();
+    const t = pandaElapsed;
     const breathe = 1 + Math.sin(t * pandaMoodSpeed) * pandaMoodAmplitude;
     const base = pandaModel.userData.baseScale * pandaCurrentStageScale;
 
@@ -911,7 +997,17 @@ function animatePandaFrame(){
 
     pandaModel.scale.setScalar(base * breathe);
     pandaModel.position.y = bounce;
-    pandaModel.rotation.y = Math.sin(t * 0.4) * 0.18;
+    if(!pandaControls){
+      pandaModel.rotation.y = Math.sin(t * 0.4) * 0.18;
+    }
+  }
+
+  if(pandaHudBreath) pandaHudBreath.textContent = `sin·${pandaMoodSpeed.toFixed(1)}`;
+  if(pandaHudUptime){
+    const secs = Math.floor(pandaElapsed);
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    pandaHudUptime.textContent = `${mm}:${ss}`;
   }
 
   if(pandaRenderer && pandaScene && pandaCamera){
