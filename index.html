@@ -333,6 +333,13 @@
     color:#5C8CFF;
     letter-spacing:1px;
   }
+  #panda-countdown{
+    margin-top:8px;
+    font-size:0.9rem;
+    color:#0052FF;
+    font-weight:bold;
+    letter-spacing:1px;
+  }
   #panda-progress-track{
     width:100%;
     max-width:280px;
@@ -574,15 +581,7 @@
 
   <div id="airdrop-tasks">
     <button class="menu-btn" id="gmgn-task-btn" style="margin-bottom:14px;">GM / GN</button>
-    <button class="menu-btn" id="panda-task-btn" style="margin-bottom:22px;">Feed Panda</button>
-    <div class="tasks-label">// RECOMMENDED ACTIONS</div>
-    <button class="task-btn">▢ Bridge ETH to Base</button>
-    <button class="task-btn">▢ Swap on a Base DEX</button>
-    <button class="task-btn">▢ Mint an NFT on Base</button>
-    <button class="task-btn">▢ Provide Liquidity</button>
-    <button class="task-btn">▢ Use a Lending Protocol</button>
-    <button class="task-btn">▢ Claim a Basename</button>
-    <button class="task-btn">▢ Vote in Governance</button>
+    <button class="menu-btn" id="panda-task-btn">Feed Panda</button>
   </div>
 </div>
 
@@ -621,6 +620,7 @@
       <div id="panda-emoji">🥚</div>
       <div id="panda-stage-label">Egg</div>
       <div id="panda-mood">// connecting...</div>
+      <div id="panda-countdown"></div>
       <div id="panda-progress-track"><div id="panda-progress-fill"></div></div>
       <div id="panda-progress-label"></div>
       <div id="panda-stats"></div>
@@ -658,6 +658,7 @@ const GMGN_ABI = [
   "function canGn(address user) external view returns (bool)",
   "function getStats(address user) external view returns (uint256 lastGm, uint256 lastGn, uint32 gmStreak, uint32 gnStreak, uint32 bestGmStreak, uint32 bestGnStreak, uint32 totalGm, uint32 totalGn)"
 ];
+const GMGN_COOLDOWN_SECONDS = 20 * 60 * 60; // kontrattaki COOLDOWN ile aynı (20 saat)
 
 // Panda kontratı — deploy edildikten sonra adres buraya girilecek.
 const PANDA_CONTRACT_ADDRESS = "0xd6779042f05fdf9a66b16b0d4d7355d4ca239436";
@@ -765,6 +766,7 @@ gmgnBtn.addEventListener('click', async () => {
 });
 
 gmgnBackBtn.addEventListener('click', () => {
+  if(gmgnCountdownTimer) clearInterval(gmgnCountdownTimer);
   goToScreen(screenMenu);
 });
 
@@ -779,6 +781,8 @@ const pandaMood = document.getElementById('panda-mood');
 const pandaProgressFill = document.getElementById('panda-progress-fill');
 const pandaProgressLabel = document.getElementById('panda-progress-label');
 const pandaStats = document.getElementById('panda-stats');
+const pandaCountdown = document.getElementById('panda-countdown');
+let pandaCountdownTimer = null;
 
 function getPandaContract(){
   const provider = new ethers.providers.Web3Provider(window.ethereum);
@@ -786,9 +790,21 @@ function getPandaContract(){
   return new ethers.Contract(PANDA_CONTRACT_ADDRESS, PANDA_ABI, signer);
 }
 
+// Kontrattaki eşikler [3,8,16,30] idi. Görünüm eşiklerini site tarafında
+// düzelttik: yumurta ilk beslemede açılıyor, sonrası ~günde 2 besleme
+// ortalamasıyla ~1 hafta / ~2 hafta / ~4 hafta aralıklarına denk geliyor.
+const PANDA_DISPLAY_THRESHOLDS = [1, 14, 28, 56];
+
+function pandaStageFromFeedCount(feedCount){
+  for(let i = 0; i < PANDA_DISPLAY_THRESHOLDS.length; i++){
+    if(feedCount < PANDA_DISPLAY_THRESHOLDS[i]) return i;
+  }
+  return PANDA_DISPLAY_THRESHOLDS.length;
+}
+
 function renderPandaStats(s){
-  const level = Number(s.level);
   const feedCount = Number(s.feedCount);
+  const level = pandaStageFromFeedCount(feedCount);
   const streak = Number(s.streak);
   const bestStreak = Number(s.bestStreak);
   const lastFed = Number(s.lastFed);
@@ -798,30 +814,11 @@ function renderPandaStats(s){
   pandaEmoji.style.fontSize = stage.size || '2rem';
   pandaStageLabel.textContent = stage.label;
 
-  const now = Math.floor(Date.now() / 1000);
-  const sinceLastFed = lastFed === 0 ? Infinity : now - lastFed;
-
-  let moodText, canFeedNow;
-  if(lastFed === 0){
-    moodText = '// never fed — waiting for first meal';
-    canFeedNow = true;
-  }else if(sinceLastFed < PANDA_COOLDOWN_SECONDS){
-    moodText = '😊 Full — come back later';
-    canFeedNow = false;
-  }else if(sinceLastFed < PANDA_STREAK_WINDOW_SECONDS){
-    moodText = '🙂 Hungry — ready to feed';
-    canFeedNow = true;
-  }else{
-    moodText = '😢 Starving — streak will reset';
-    canFeedNow = true;
-  }
-  pandaMood.textContent = moodText;
-
   const nextThreshold = level < PANDA_STAGES.length - 1
-    ? [3, 8, 16, 30][level]
+    ? PANDA_DISPLAY_THRESHOLDS[level]
     : null;
   if(nextThreshold){
-    const prevThreshold = level === 0 ? 0 : [3, 8, 16, 30][level - 1];
+    const prevThreshold = level === 0 ? 0 : PANDA_DISPLAY_THRESHOLDS[level - 1];
     const pct = Math.min(100, Math.round(((feedCount - prevThreshold) / (nextThreshold - prevThreshold)) * 100));
     pandaProgressFill.style.width = `${pct}%`;
     pandaProgressLabel.textContent = `${feedCount} / ${nextThreshold} feeds to next stage`;
@@ -836,13 +833,49 @@ function renderPandaStats(s){
     Best Streak: <span class="p-value">${bestStreak}</span>
   `;
 
-  pandaFeedBtn.disabled = !canFeedNow;
-  pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃' : 'Fed — come back later';
+  function updatePandaLiveState(){
+    const now = Math.floor(Date.now() / 1000);
+    const sinceLastFed = lastFed === 0 ? Infinity : now - lastFed;
+    const remain = lastFed === 0 ? 0 : (lastFed + PANDA_COOLDOWN_SECONDS) - now;
+
+    let moodText, canFeedNow;
+    if(lastFed === 0){
+      moodText = '// never fed — waiting for first meal';
+      canFeedNow = true;
+      pandaCountdown.textContent = 'Ready now ✅';
+    }else if(sinceLastFed < PANDA_COOLDOWN_SECONDS){
+      moodText = '😊 Full';
+      canFeedNow = false;
+      pandaCountdown.textContent = `Next feed in: ${formatCountdown(remain)}`;
+    }else if(sinceLastFed < PANDA_STREAK_WINDOW_SECONDS){
+      moodText = '🙂 Hungry — ready to feed';
+      canFeedNow = true;
+      pandaCountdown.textContent = 'Ready now ✅';
+    }else{
+      moodText = '😢 Starving — streak will reset';
+      canFeedNow = true;
+      pandaCountdown.textContent = 'Ready now ✅';
+    }
+    pandaMood.textContent = moodText;
+    pandaFeedBtn.disabled = !canFeedNow;
+    pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃' : 'Fed — come back later';
+
+    if(canFeedNow && pandaCountdownTimer){
+      clearInterval(pandaCountdownTimer);
+      pandaCountdownTimer = null;
+    }
+  }
+
+  updatePandaLiveState();
+  if(pandaCountdownTimer) clearInterval(pandaCountdownTimer);
+  pandaCountdownTimer = setInterval(updatePandaLiveState, 1000);
 }
 
 async function loadPandaScreen(address){
+  if(pandaCountdownTimer){ clearInterval(pandaCountdownTimer); pandaCountdownTimer = null; }
   if(!PANDA_CONTRACT_ADDRESS){
     pandaMood.textContent = '// Kontrat henüz deploy edilmedi — çok yakında aktif olacak';
+    pandaCountdown.textContent = '';
     pandaFeedBtn.disabled = true;
     pandaFeedBtn.textContent = 'Coming Soon';
     pandaStats.innerHTML = '';
@@ -896,6 +929,7 @@ pandaFeedBtn.addEventListener('click', async () => {
 });
 
 pandaBackBtn.addEventListener('click', () => {
+  if(pandaCountdownTimer){ clearInterval(pandaCountdownTimer); pandaCountdownTimer = null; }
   goToScreen(screenMenu);
 });
 
@@ -1322,6 +1356,16 @@ async function connectWallet(){
 }
 
 /* ── GM / GN — gerçek on-chain kontrat çağrıları ─────────────────── */
+let gmgnCountdownTimer = null;
+
+function formatCountdown(seconds){
+  if(seconds <= 0) return 'Ready now ✅';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h}h ${m}m ${s}s`;
+}
+
 async function showGmGnSection(walletAddress){
   addSection('GM / GN — ON-CHAIN CHECK-IN');
 
@@ -1334,15 +1378,23 @@ async function showGmGnSection(walletAddress){
   const signer = provider.getSigner();
   const contract = new ethers.Contract(GMGN_CONTRACT_ADDRESS, GMGN_ABI, signer);
 
-  let statsRow, streakRow;
+  let lastGm = 0, lastGn = 0;
   try{
     const s = await contract.getStats(walletAddress);
-    statsRow = { gmStreak: s.gmStreak, gnStreak: s.gnStreak, bestGm: s.bestGmStreak, bestGn: s.bestGnStreak };
-    await addFieldRow('Current GM Streak:', `${statsRow.gmStreak} 🔥`);
-    await addFieldRow('Current GN Streak:', `${statsRow.gnStreak} 🌙`);
+    await addFieldRow('Current GM Streak:', `${s.gmStreak} 🔥`);
+    await addFieldRow('Current GN Streak:', `${s.gnStreak} 🌙`);
+    lastGm = Number(s.lastGm);
+    lastGn = Number(s.lastGn);
   }catch(e){
     await addRow('Streak verisi okunamadı, yine de check-in yapabilirsin.', 'status');
   }
+
+  const gmCountdownEl = document.createElement('div');
+  gmCountdownEl.className = 'row value';
+  const gnCountdownEl = document.createElement('div');
+  gnCountdownEl.className = 'row value';
+  activeTerminal.appendChild(gmCountdownEl);
+  activeTerminal.appendChild(gnCountdownEl);
 
   const wrap = document.createElement('div');
   wrap.className = 'choice-row';
@@ -1359,6 +1411,19 @@ async function showGmGnSection(walletAddress){
   wrap.appendChild(gnBtn);
   activeTerminal.appendChild(wrap);
 
+  function updateGmGnCountdown(){
+    const now = Math.floor(Date.now() / 1000);
+    const gmRemain = (lastGm + GMGN_COOLDOWN_SECONDS) - now;
+    const gnRemain = (lastGn + GMGN_COOLDOWN_SECONDS) - now;
+    gmCountdownEl.textContent = `Next GM: ${lastGm === 0 ? 'Ready now ✅' : formatCountdown(gmRemain)}`;
+    gnCountdownEl.textContent = `Next GN: ${lastGn === 0 ? 'Ready now ✅' : formatCountdown(gnRemain)}`;
+    gmBtn.disabled = lastGm !== 0 && gmRemain > 0;
+    gnBtn.disabled = lastGn !== 0 && gnRemain > 0;
+  }
+  updateGmGnCountdown();
+  if(gmgnCountdownTimer) clearInterval(gmgnCountdownTimer);
+  gmgnCountdownTimer = setInterval(updateGmGnCountdown, 1000);
+
   const doCheckIn = async (type, btn) => {
     btn.disabled = true;
     try{
@@ -1367,6 +1432,9 @@ async function showGmGnSection(walletAddress){
       await addRow('İşlem onaylanıyor...', 'status');
       await tx.wait();
       await addRow(`${type.toUpperCase()} başarılı! Streak güncellendi.`, 'value');
+      const now = Math.floor(Date.now() / 1000);
+      if(type === 'gm') lastGm = now; else lastGn = now;
+      updateGmGnCountdown();
     }catch(err){
       const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
       await addRow(`Hata: ${reason}`, 'err');
