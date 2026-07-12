@@ -305,6 +305,69 @@
     opacity:0.85;
   }
 
+  /* ── panda beslenme ekranı ─────────────────────────────────────── */
+  #panda-body{
+    padding:28px 20px 24px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+  }
+  #panda-emoji{
+    font-size:3rem;
+    line-height:1;
+    filter: drop-shadow(0 0 14px rgba(0,82,255,0.35));
+    transition: font-size .25s ease;
+  }
+  #panda-stage-label{
+    margin-top:10px;
+    font-size:0.85rem;
+    letter-spacing:2px;
+    color:#0052FF;
+    font-weight:bold;
+    text-transform:uppercase;
+  }
+  #panda-mood{
+    margin-top:6px;
+    font-size:0.72rem;
+    color:#5C8CFF;
+    letter-spacing:1px;
+  }
+  #panda-progress-track{
+    width:100%;
+    max-width:280px;
+    height:8px;
+    border:1px solid #12203a;
+    margin-top:18px;
+    background:#050810;
+  }
+  #panda-progress-fill{
+    height:100%;
+    width:0%;
+    background:#0052FF;
+    box-shadow:0 0 10px rgba(0,82,255,0.5);
+    transition: width .3s ease;
+  }
+  #panda-progress-label{
+    margin-top:6px;
+    font-size:0.65rem;
+    color:#3A5DBF;
+    letter-spacing:1px;
+  }
+  #panda-stats{
+    margin-top:18px;
+    width:100%;
+    font-size:0.75rem;
+    color:#3A5DBF;
+    text-align:left;
+    max-width:280px;
+    line-height:1.9;
+  }
+  #panda-stats .p-value{
+    color:#0052FF;
+    font-weight:bold;
+  }
+
   #sound-toggle{
     position:fixed;
     top:16px;
@@ -506,11 +569,12 @@
 <!-- ── EKRAN 2: MENÜ ─────────────────────────────────────────── -->
 <div id="screen-menu" class="screen">
   <div class="glitch-text menu-title" data-text="ACCESS GRANTED">ACCESS GRANTED</div>
-  <button class="menu-btn" id="menu-checker-btn">Airdrop Checker</button>
+  <button class="menu-btn disabled" id="menu-checker-btn">Coming Soon</button>
   <button class="menu-btn" id="menu-connect-btn">Connect Wallet</button>
-  <button class="menu-btn" id="menu-gmgn-btn">GM / GN</button>
 
   <div id="airdrop-tasks">
+    <button class="menu-btn" id="gmgn-task-btn" style="margin-bottom:14px;">GM / GN</button>
+    <button class="menu-btn" id="panda-task-btn" style="margin-bottom:22px;">Feed Panda</button>
     <div class="tasks-label">// RECOMMENDED ACTIONS</div>
     <button class="task-btn">▢ Bridge ETH to Base</button>
     <button class="task-btn">▢ Swap on a Base DEX</button>
@@ -546,6 +610,26 @@
   <button class="menu-btn" id="gmgn-back-btn" style="margin-top:20px; width:min(80vw,320px);">← Back</button>
 </div>
 
+<!-- ── EKRAN 5: FEED PANDA ───────────────────────────────────── -->
+<div id="screen-panda" class="screen">
+  <div id="panda-window" class="term-window" style="display:block;">
+    <div class="win-head">
+      <span class="dot live"></span><span class="dot"></span><span class="dot"></span>
+      <span class="win-title">root@base:~/panda</span>
+    </div>
+    <div id="panda-body">
+      <div id="panda-emoji">🥚</div>
+      <div id="panda-stage-label">Egg</div>
+      <div id="panda-mood">// connecting...</div>
+      <div id="panda-progress-track"><div id="panda-progress-fill"></div></div>
+      <div id="panda-progress-label"></div>
+      <div id="panda-stats"></div>
+      <button class="menu-btn" id="panda-feed-btn" style="margin-top:18px; width:100%;">Feed 🍃</button>
+    </div>
+  </div>
+  <button class="menu-btn" id="panda-back-btn" style="margin-top:20px; width:min(80vw,320px);">← Back</button>
+</div>
+
 <div id="brand-footer">
 <div class="partners"><span class="p-label">POWERED BY</span>VRNOUNS<span class="p-sep">·</span>INOX SQUAD<span class="p-sep">·</span>BASEBOARDING</div>
 <pre>:::::::::::::::::
@@ -575,6 +659,24 @@ const GMGN_ABI = [
   "function getStats(address user) external view returns (uint256 lastGm, uint256 lastGn, uint32 gmStreak, uint32 gnStreak, uint32 bestGmStreak, uint32 bestGnStreak, uint32 totalGm, uint32 totalGn)"
 ];
 
+// Panda kontratı — deploy edildikten sonra adres buraya girilecek.
+const PANDA_CONTRACT_ADDRESS = ""; // <-- PandaFeeder.sol deploy sonrası buraya yapıştır
+const PANDA_ABI = [
+  "function feed() external",
+  "function canFeed(address user) external view returns (bool)",
+  "function getLevel(address user) external view returns (uint8)",
+  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 streak, uint32 bestStreak, uint8 level)"
+];
+const PANDA_COOLDOWN_SECONDS = 6 * 60 * 60;
+const PANDA_STREAK_WINDOW_SECONDS = 12 * 60 * 60;
+const PANDA_STAGES = [
+  { emoji: '🥚', label: 'Egg' },
+  { emoji: '🐼', label: 'Cub', size: '2.2rem' },
+  { emoji: '🐼', label: 'Young Panda', size: '3rem' },
+  { emoji: '🐼', label: 'Panda', size: '3.8rem' },
+  { emoji: '🐼', label: 'Elder Panda', size: '4.6rem' }
+];
+
 const BASE_CHAIN_ID_HEX = "0x2105"; // 8453 — Base mainnet
 const BASE_CHAIN_PARAMS = {
   chainId: BASE_CHAIN_ID_HEX,
@@ -601,7 +703,7 @@ const screenStage = document.getElementById('stage');
 const gatePass = document.getElementById('gate-pass');
 
 function goToScreen(el){
-  [screenGate, screenMenu, screenStage].forEach(s => s.classList.remove('active'));
+  [screenGate, screenMenu, screenStage, screenGmgn, screenPanda].forEach(s => s.classList.remove('active'));
   el.classList.add('active');
 }
 
@@ -615,11 +717,6 @@ gatePass.addEventListener('keydown', (e) => {
     setTimeout(() => screenGate.classList.remove('shake'), 400);
     gatePass.value = '';
   }
-});
-
-document.getElementById('menu-checker-btn').addEventListener('click', () => {
-  goToScreen(screenStage);
-  setTimeout(() => input.focus(), 50);
 });
 
 const connectBtn = document.getElementById('menu-connect-btn');
@@ -643,7 +740,7 @@ connectBtn.addEventListener('click', async () => {
 
 const gmgnTerminal = document.getElementById('gmgn-terminal');
 const screenGmgn = document.getElementById('screen-gmgn');
-const gmgnBtn = document.getElementById('menu-gmgn-btn');
+const gmgnBtn = document.getElementById('gmgn-task-btn');
 const gmgnBackBtn = document.getElementById('gmgn-back-btn');
 
 gmgnBtn.addEventListener('click', async () => {
@@ -668,6 +765,137 @@ gmgnBtn.addEventListener('click', async () => {
 });
 
 gmgnBackBtn.addEventListener('click', () => {
+  goToScreen(screenMenu);
+});
+
+/* ── Feed Panda ────────────────────────────────────────────────── */
+const screenPanda = document.getElementById('screen-panda');
+const pandaTaskBtn = document.getElementById('panda-task-btn');
+const pandaBackBtn = document.getElementById('panda-back-btn');
+const pandaFeedBtn = document.getElementById('panda-feed-btn');
+const pandaEmoji = document.getElementById('panda-emoji');
+const pandaStageLabel = document.getElementById('panda-stage-label');
+const pandaMood = document.getElementById('panda-mood');
+const pandaProgressFill = document.getElementById('panda-progress-fill');
+const pandaProgressLabel = document.getElementById('panda-progress-label');
+const pandaStats = document.getElementById('panda-stats');
+
+function getPandaContract(){
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  const signer = provider.getSigner();
+  return new ethers.Contract(PANDA_CONTRACT_ADDRESS, PANDA_ABI, signer);
+}
+
+function renderPandaStats(s){
+  const level = Number(s.level);
+  const feedCount = Number(s.feedCount);
+  const streak = Number(s.streak);
+  const bestStreak = Number(s.bestStreak);
+  const lastFed = Number(s.lastFed);
+
+  const stage = PANDA_STAGES[Math.min(level, PANDA_STAGES.length - 1)];
+  pandaEmoji.textContent = stage.emoji;
+  pandaEmoji.style.fontSize = stage.size || '2rem';
+  pandaStageLabel.textContent = stage.label;
+
+  const now = Math.floor(Date.now() / 1000);
+  const sinceLastFed = lastFed === 0 ? Infinity : now - lastFed;
+
+  let moodText, canFeedNow;
+  if(lastFed === 0){
+    moodText = '// never fed — waiting for first meal';
+    canFeedNow = true;
+  }else if(sinceLastFed < PANDA_COOLDOWN_SECONDS){
+    moodText = '😊 Full — come back later';
+    canFeedNow = false;
+  }else if(sinceLastFed < PANDA_STREAK_WINDOW_SECONDS){
+    moodText = '🙂 Hungry — ready to feed';
+    canFeedNow = true;
+  }else{
+    moodText = '😢 Starving — streak will reset';
+    canFeedNow = true;
+  }
+  pandaMood.textContent = moodText;
+
+  const nextThreshold = level < PANDA_STAGES.length - 1
+    ? [3, 8, 16, 30][level]
+    : null;
+  if(nextThreshold){
+    const prevThreshold = level === 0 ? 0 : [3, 8, 16, 30][level - 1];
+    const pct = Math.min(100, Math.round(((feedCount - prevThreshold) / (nextThreshold - prevThreshold)) * 100));
+    pandaProgressFill.style.width = `${pct}%`;
+    pandaProgressLabel.textContent = `${feedCount} / ${nextThreshold} feeds to next stage`;
+  }else{
+    pandaProgressFill.style.width = '100%';
+    pandaProgressLabel.textContent = `${feedCount} feeds — max stage reached`;
+  }
+
+  pandaStats.innerHTML = `
+    Total Feeds: <span class="p-value">${feedCount}</span><br>
+    Current Streak: <span class="p-value">${streak}</span><br>
+    Best Streak: <span class="p-value">${bestStreak}</span>
+  `;
+
+  pandaFeedBtn.disabled = !canFeedNow;
+  pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃' : 'Fed — come back later';
+}
+
+async function loadPandaScreen(address){
+  if(!PANDA_CONTRACT_ADDRESS){
+    pandaMood.textContent = '// Kontrat henüz deploy edilmedi — çok yakında aktif olacak';
+    pandaFeedBtn.disabled = true;
+    pandaFeedBtn.textContent = 'Coming Soon';
+    pandaStats.innerHTML = '';
+    pandaProgressLabel.textContent = '';
+    return;
+  }
+  try{
+    const contract = getPandaContract();
+    const stats = await contract.getStats(address);
+    renderPandaStats(stats);
+  }catch(err){
+    pandaMood.textContent = `// Hata: ${err.message || 'veri okunamadı'}`;
+  }
+}
+
+pandaTaskBtn.addEventListener('click', async () => {
+  pandaTaskBtn.disabled = true;
+  try{
+    if(!connectedAddress){
+      pandaTaskBtn.textContent = 'Connecting...';
+      connectedAddress = await connectWallet();
+      connectBtn.textContent = `Connected: ${shortAddr(connectedAddress)}`;
+      airdropTasks.classList.add('visible');
+    }
+    goToScreen(screenPanda);
+    await loadPandaScreen(connectedAddress);
+  }catch(err){
+    alert(err.message || 'Bağlantı başarısız.');
+  }
+  pandaTaskBtn.textContent = 'Feed Panda';
+  pandaTaskBtn.disabled = false;
+});
+
+pandaFeedBtn.addEventListener('click', async () => {
+  if(!PANDA_CONTRACT_ADDRESS || !connectedAddress) return;
+  pandaFeedBtn.disabled = true;
+  const originalText = pandaFeedBtn.textContent;
+  pandaFeedBtn.textContent = 'Confirm in wallet...';
+  try{
+    const contract = getPandaContract();
+    const tx = await contract.feed();
+    pandaFeedBtn.textContent = 'Feeding...';
+    await tx.wait();
+    await loadPandaScreen(connectedAddress);
+  }catch(err){
+    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    alert(reason);
+    pandaFeedBtn.textContent = originalText;
+    pandaFeedBtn.disabled = false;
+  }
+});
+
+pandaBackBtn.addEventListener('click', () => {
   goToScreen(screenMenu);
 });
 
