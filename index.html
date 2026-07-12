@@ -693,7 +693,8 @@
       <div id="panda-progress-track"><div id="panda-progress-fill"></div></div>
       <div id="panda-progress-label"></div>
       <div id="panda-stats"></div>
-      <button class="menu-btn" id="panda-feed-btn" style="margin-top:18px; width:100%;">Feed 🍃</button>
+      <button class="menu-btn" id="panda-feed-btn" style="margin-top:18px; width:100%;">Feed 🍃 (free)</button>
+      <button class="menu-btn" id="panda-premium-btn" style="margin-top:10px; width:100%;">Premium Bamboo 🎋 (~$0.10)</button>
     </div>
   </div>
   <button class="menu-btn" id="panda-back-btn" style="margin-top:20px; width:min(80vw,320px);">← Back</button>
@@ -730,23 +731,46 @@ const GMGN_ABI = [
 const GMGN_COOLDOWN_SECONDS = 20 * 60 * 60; // kontrattaki COOLDOWN ile aynı (20 saat)
 
 // Panda kontratı — deploy edildikten sonra adres buraya girilecek.
-const PANDA_CONTRACT_ADDRESS = "0xd6779042f05fdf9a66b16b0d4d7355d4ca239436";
+const PANDA_CONTRACT_ADDRESS = "0x9e8285C486257575B53Ca5Eb0eBD7700c0300c2e";
 const PANDA_ABI = [
   "function feed() external",
+  "function feedPremium() external payable",
   "function canFeed(address user) external view returns (bool)",
+  "function premiumFeedsRemainingToday(address user) external view returns (uint32)",
+  "function premiumPriceWei() external view returns (uint256)",
   "function getLevel(address user) external view returns (uint8)",
-  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 streak, uint32 bestStreak, uint8 level)"
+  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 xp, uint32 streak, uint32 bestStreak, uint8 level, uint32 premiumRemaining)"
 ];
 const PANDA_COOLDOWN_SECONDS = 6 * 60 * 60;
 const PANDA_STREAK_WINDOW_SECONDS = 12 * 60 * 60;
+// Not: Görsel büyüme (modelin gerçekten büyümesi) sonraki bir güncellemede
+// eklenecek. Şimdilik yumurtadan çıktıktan sonra tüm seviyelerde aynı
+// "baby panda" modeli kullanılıyor, sadece seviye adı/etiketi değişiyor.
+const PANDA_BASE_SCALE = 0.65;
 const PANDA_STAGES = [
   { label: 'Egg', scale: 0.5, isEgg: true },
-  { label: 'Cub', scale: 0.65 },
-  { label: 'Young Panda', scale: 0.85 },
-  { label: 'Panda', scale: 1.05 },
-  { label: 'Elder Panda', scale: 1.25 }
+  { label: 'Cub', scale: PANDA_BASE_SCALE },
+  { label: 'Young Panda', scale: PANDA_BASE_SCALE },
+  { label: 'Panda', scale: PANDA_BASE_SCALE },
+  { label: 'Elder Panda', scale: PANDA_BASE_SCALE }
 ];
 const PANDA_MODEL_URL = './BlueBabyPanda.glb';
+
+// Kontrattaki XP_THRESHOLDS ile birebir aynı — sadece ilerleme çubuğu için.
+// XP_NORMAL=5, XP_PREMIUM=10 (premium normalin 2 katı XP verir).
+const PANDA_XP_THRESHOLDS = [5, 70, 140, 280];
+
+// Base Builder Code attribution (ERC-8021) — her işlemin sonuna eklenir,
+// kontrat çalışmasını etkilemez, sadece base.dev analitiğinde bu uygulamaya
+// ait olarak işaretlenmesini sağlar.
+const BUILDER_CODE_SUFFIX = '62635f67306b736161786f0b0080218021802180218021802180218021';
+
+async function sendWithAttribution(contract, methodName, args = []){
+  const populatedTx = await contract.populateTransaction[methodName](...args);
+  populatedTx.data = populatedTx.data + BUILDER_CODE_SUFFIX;
+  return contract.signer.sendTransaction(populatedTx);
+}
+
 
 
 const BASE_CHAIN_ID_HEX = "0x2105"; // 8453 — Base mainnet
@@ -846,6 +870,7 @@ const screenPanda = document.getElementById('screen-panda');
 const pandaTaskBtn = document.getElementById('panda-task-btn');
 const pandaBackBtn = document.getElementById('panda-back-btn');
 const pandaFeedBtn = document.getElementById('panda-feed-btn');
+const pandaPremiumBtn = document.getElementById('panda-premium-btn');
 const pandaEmoji = document.getElementById('panda-emoji');
 const pandaStageLabel = document.getElementById('panda-stage-label');
 const pandaMood = document.getElementById('panda-mood');
@@ -859,18 +884,6 @@ function getPandaContract(){
   const provider = new ethers.providers.Web3Provider(window.ethereum);
   const signer = provider.getSigner();
   return new ethers.Contract(PANDA_CONTRACT_ADDRESS, PANDA_ABI, signer);
-}
-
-// Kontrattaki eşikler [3,8,16,30] idi. Görünüm eşiklerini site tarafında
-// düzelttik: yumurta ilk beslemede açılıyor, sonrası ~günde 2 besleme
-// ortalamasıyla ~1 hafta / ~2 hafta / ~4 hafta aralıklarına denk geliyor.
-const PANDA_DISPLAY_THRESHOLDS = [1, 14, 28, 56];
-
-function pandaStageFromFeedCount(feedCount){
-  for(let i = 0; i < PANDA_DISPLAY_THRESHOLDS.length; i++){
-    if(feedCount < PANDA_DISPLAY_THRESHOLDS[i]) return i;
-  }
-  return PANDA_DISPLAY_THRESHOLDS.length;
 }
 
 /* ── 3D panda sahnesi (Three.js + GLTF) ───────────────────────────── */
@@ -1026,10 +1039,12 @@ function stopPandaAnimation(){
 
 function renderPandaStats(s){
   const feedCount = Number(s.feedCount);
-  const level = pandaStageFromFeedCount(feedCount);
+  const xp = Number(s.xp);
+  const level = Number(s.level);
   const streak = Number(s.streak);
   const bestStreak = Number(s.bestStreak);
   const lastFed = Number(s.lastFed);
+  const premiumRemaining = Number(s.premiumRemaining);
 
   const stage = PANDA_STAGES[Math.min(level, PANDA_STAGES.length - 1)];
   pandaStageLabel.textContent = stage.label;
@@ -1047,23 +1062,29 @@ function renderPandaStats(s){
   }
 
   const nextThreshold = level < PANDA_STAGES.length - 1
-    ? PANDA_DISPLAY_THRESHOLDS[level]
+    ? PANDA_XP_THRESHOLDS[level]
     : null;
   if(nextThreshold){
-    const prevThreshold = level === 0 ? 0 : PANDA_DISPLAY_THRESHOLDS[level - 1];
-    const pct = Math.min(100, Math.round(((feedCount - prevThreshold) / (nextThreshold - prevThreshold)) * 100));
+    const prevThreshold = level === 0 ? 0 : PANDA_XP_THRESHOLDS[level - 1];
+    const pct = Math.min(100, Math.round(((xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100));
     pandaProgressFill.style.width = `${pct}%`;
-    pandaProgressLabel.textContent = `${feedCount} / ${nextThreshold} feeds to next stage`;
+    pandaProgressLabel.textContent = `${xp} / ${nextThreshold} XP to next stage`;
   }else{
     pandaProgressFill.style.width = '100%';
-    pandaProgressLabel.textContent = `${feedCount} feeds — max stage reached`;
+    pandaProgressLabel.textContent = `${xp} XP — max stage reached`;
   }
 
   pandaStats.innerHTML = `
     Total Feeds: <span class="p-value">${feedCount}</span><br>
+    XP: <span class="p-value">${xp}</span><br>
     Current Streak: <span class="p-value">${streak}</span><br>
     Best Streak: <span class="p-value">${bestStreak}</span>
   `;
+
+  pandaPremiumBtn.disabled = premiumRemaining <= 0;
+  pandaPremiumBtn.textContent = premiumRemaining > 0
+    ? `Premium Bamboo 🎋 (${premiumRemaining}/5 today)`
+    : `Premium Bamboo 🎋 (0/5 — resets daily)`;
 
   function updatePandaLiveState(){
     const now = Math.floor(Date.now() / 1000);
@@ -1080,7 +1101,7 @@ function renderPandaStats(s){
       moodText = '😊 Full';
       canFeedNow = false;
       moodKey = 'happy';
-      pandaCountdown.textContent = `Next feed in: ${formatCountdown(remain)}`;
+      pandaCountdown.textContent = `Next free feed in: ${formatCountdown(remain)}`;
     }else if(sinceLastFed < PANDA_STREAK_WINDOW_SECONDS){
       moodText = '🙂 Hungry — ready to feed';
       canFeedNow = true;
@@ -1094,7 +1115,7 @@ function renderPandaStats(s){
     }
     pandaMood.textContent = moodText;
     pandaFeedBtn.disabled = !canFeedNow;
-    pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃' : 'Fed — come back later';
+    pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃 (free)' : 'Fed — come back later';
     if(!stage.isEgg) setPandaMood(moodKey);
 
     if(canFeedNow && pandaCountdownTimer){
@@ -1115,6 +1136,8 @@ async function loadPandaScreen(address){
     pandaCountdown.textContent = '';
     pandaFeedBtn.disabled = true;
     pandaFeedBtn.textContent = 'Coming Soon';
+    pandaPremiumBtn.disabled = true;
+    pandaPremiumBtn.textContent = 'Coming Soon';
     pandaStats.innerHTML = '';
     pandaProgressLabel.textContent = '';
     return;
@@ -1153,7 +1176,7 @@ pandaFeedBtn.addEventListener('click', async () => {
   pandaFeedBtn.textContent = 'Confirm in wallet...';
   try{
     const contract = getPandaContract();
-    const tx = await contract.feed();
+    const tx = await sendWithAttribution(contract, 'feed');
     pandaFeedBtn.textContent = 'Feeding...';
     await tx.wait();
     await loadPandaScreen(connectedAddress);
@@ -1164,6 +1187,28 @@ pandaFeedBtn.addEventListener('click', async () => {
     alert(reason);
     pandaFeedBtn.textContent = originalText;
     pandaFeedBtn.disabled = false;
+  }
+});
+
+pandaPremiumBtn.addEventListener('click', async () => {
+  if(!PANDA_CONTRACT_ADDRESS || !connectedAddress) return;
+  pandaPremiumBtn.disabled = true;
+  const originalText = pandaPremiumBtn.textContent;
+  pandaPremiumBtn.textContent = 'Confirm in wallet...';
+  try{
+    const contract = getPandaContract();
+    const priceWei = await contract.premiumPriceWei();
+    const tx = await sendWithAttribution(contract, 'feedPremium', [{ value: priceWei }]);
+    pandaPremiumBtn.textContent = 'Feeding...';
+    await tx.wait();
+    await loadPandaScreen(connectedAddress);
+    setPandaMood('happy');
+    triggerPandaBounce();
+  }catch(err){
+    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    alert(reason);
+    pandaPremiumBtn.textContent = originalText;
+    pandaPremiumBtn.disabled = false;
   }
 });
 
@@ -1668,7 +1713,7 @@ async function showGmGnSection(walletAddress){
     btn.disabled = true;
     try{
       await addRow(`${type.toUpperCase()} işlemi gönderiliyor, cüzdanda onayla...`, 'status');
-      const tx = type === 'gm' ? await contract.gm() : await contract.gn();
+      const tx = await sendWithAttribution(contract, type);
       await addRow('İşlem onaylanıyor...', 'status');
       await tx.wait();
       await addRow(`${type.toUpperCase()} başarılı! Streak güncellendi.`, 'value');
