@@ -1,0 +1,612 @@
+*{ margin:0; padding:0; box-sizing:border-box; }
+  html, body{
+    min-height:100%;
+    background:#000000;
+  }
+  body{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:40px 20px;
+    position:relative;
+    transition: justify-content .2s ease;
+  }
+  body.scanning{
+    justify-content:flex-start;
+    padding-top:56px;
+  }
+
+  /* ── çoklu ekran yönetimi (gate → menu → scanner) ─────────────── */
+  .screen{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    width:100%;
+  }
+  .screen.active{
+    display:flex;
+  }
+
+  /* ── açılış glitch flaşı ──────────────────────────────────────── */
+  #boot-overlay{
+    position:fixed;
+    inset:0;
+    background:#000;
+    z-index:999;
+    animation: bootFlicker 0.9s steps(1) forwards;
+    pointer-events:none;
+  }
+  @keyframes bootFlicker{
+    0%{ opacity:1; }
+    8%{ opacity:0.15; }
+    16%{ opacity:1; }
+    24%{ opacity:0.05; }
+    32%{ opacity:1; }
+    45%{ opacity:0.3; }
+    60%{ opacity:1; }
+    100%{ opacity:0; }
+  }
+
+  /* ── glitch metin efekti ──────────────────────────────────────── */
+  .glitch-text{
+    position:relative;
+    font-weight:700;
+    letter-spacing:5px;
+    color:#0052FF;
+    font-size:clamp(1.1rem, 4vw, 1.6rem);
+    text-shadow:0 0 14px rgba(0,82,255,0.4);
+  }
+  .glitch-text::before, .glitch-text::after{
+    content: attr(data-text);
+    position:absolute;
+    left:0; top:0;
+    width:100%;
+    background:#000;
+    overflow:hidden;
+  }
+  .glitch-text::before{
+    color:#8fb3ff;
+    clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+    animation: glitchTop 3.6s infinite linear;
+  }
+  .glitch-text::after{
+    color:#ffffff;
+    clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+    animation: glitchBot 3.1s infinite linear;
+  }
+  @keyframes glitchTop{
+    0%, 90%, 100%{ transform:translate(0,0); opacity:0; }
+    91%{ transform:translate(-3px,-1px); opacity:1; }
+    93%{ transform:translate(3px,1px); opacity:1; }
+    95%{ transform:translate(-2px,0); opacity:1; }
+    97%{ opacity:0; }
+  }
+  @keyframes glitchBot{
+    0%, 88%, 100%{ transform:translate(0,0); opacity:0; }
+    89%{ transform:translate(2px,1px); opacity:1; }
+    92%{ transform:translate(-3px,0); opacity:1; }
+    94%{ transform:translate(2px,-1px); opacity:1; }
+    96%{ opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .glitch-text::before, .glitch-text::after{ animation:none; opacity:0; }
+    #boot-overlay{ animation:none; opacity:0; display:none; }
+  }
+
+  /* ── gate ekranı ──────────────────────────────────────────────── */
+  #screen-gate .gate-label{
+    font-size:0.7rem;
+    letter-spacing:3px;
+    color:#3A5DBF;
+    margin-top:26px;
+    margin-bottom:14px;
+  }
+  #screen-gate .field{
+    text-transform:uppercase;
+  }
+  #screen-gate.shake .field{
+    animation: shake 0.35s ease;
+  }
+  @keyframes shake{
+    0%, 100%{ transform:translateX(0); }
+    25%{ transform:translateX(-8px); }
+    75%{ transform:translateX(8px); }
+  }
+
+  /* ── menü ekranı ──────────────────────────────────────────────── */
+  #screen-menu .menu-title{
+    margin-bottom:36px;
+  }
+  .menu-btn{
+    display:block;
+    width:min(80vw, 320px);
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:0.9rem;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:16px 0;
+    margin-bottom:16px;
+    background:transparent;
+    border:1px solid #0052FF;
+    color:#0052FF;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .menu-btn:hover{
+    background:#0052FF;
+    color:#000;
+    box-shadow:0 0 18px rgba(0,82,255,0.35);
+  }
+  .menu-btn.disabled{
+    border-color:#1a2438;
+    color:#3a4658;
+    cursor:not-allowed;
+    pointer-events:none;
+  }
+
+  /* ── cüzdan bağlandıktan sonra çıkan görev listesi (işlevsiz) ─── */
+  #airdrop-tasks{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    width:min(80vw, 320px);
+    margin-top:28px;
+  }
+  #airdrop-tasks.visible{
+    display:flex;
+  }
+  #airdrop-tasks .tasks-label{
+    font-size:0.68rem;
+    letter-spacing:3px;
+    color:#3A5DBF;
+    margin-bottom:14px;
+  }
+  .task-btn{
+    display:block;
+    width:100%;
+    text-align:left;
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:0.78rem;
+    letter-spacing:1px;
+    padding:11px 14px;
+    margin-bottom:9px;
+    background:transparent;
+    border:1px solid #1a2438;
+    color:#5a6478;
+    cursor:default;
+    pointer-events:none;
+  }
+
+  /* çok hafif grid dokusu — boş siyahlığı kırar, matrix değil, sabit durur */
+  body::before{
+    content:'';
+    position:fixed;
+    inset:0;
+    background-image:
+      linear-gradient(#0a0e16 1px, transparent 1px),
+      linear-gradient(90deg, #0a0e16 1px, transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 75% 55% at 50% 35%, #000 15%, transparent 72%);
+            mask-image: radial-gradient(ellipse 75% 55% at 50% 35%, #000 15%, transparent 72%);
+    pointer-events:none;
+    z-index:0;
+  }
+
+  #stage{
+    flex-direction:column;
+    align-items:center;
+    width:100%;
+    position:relative;
+    z-index:1;
+  }
+
+  .field{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:clamp(1rem, 3vw, 1.6rem);
+    letter-spacing:2px;
+    color:#0052FF;
+    background:transparent;
+    border:none;
+    outline:none;
+    text-align:center;
+    caret-color:#0052FF;
+    width:min(90vw, 420px);
+    animation: blink 1.4s steps(1) infinite;
+  }
+  .field:focus{ animation:none; opacity:1; }
+  @keyframes blink{
+    0%, 45%{ opacity:1; }
+    50%, 95%{ opacity:0; }
+    100%{ opacity:1; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .field{ animation:none; }
+  }
+
+  /* ── terminal penceresi ───────────────────────── */
+  .term-window{
+    display:none;
+    width:100%;
+    max-width:560px;
+    border:1px solid #0d1524;
+    background:#020305;
+    box-shadow: 0 0 40px rgba(0,82,255,0.06);
+  }
+  #gmgn-terminal-window, #panda-window{
+    display:block;
+  }
+  .mb-14{ margin-bottom:14px; }
+  .back-btn{ margin-top:20px; width:min(80vw,320px); }
+  .panda-btn-first{ margin-top:18px; width:100%; }
+  .panda-btn-second{ margin-top:10px; width:100%; }
+  .term-window .win-head{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:11px 14px;
+    border-bottom:1px solid #0d1524;
+  }
+  .term-window .win-head .dot{
+    width:8px; height:8px; border-radius:50%;
+    background:#0d1524;
+  }
+  .term-window .win-head .dot.live{
+    background:#0052FF;
+    box-shadow:0 0 6px #0052FF;
+    animation: blink 1.6s steps(1) infinite;
+  }
+  .term-window .win-head .win-title{
+    margin-left:auto;
+    font-size:11px;
+    letter-spacing:1px;
+    color:#3A4658;
+  }
+
+  .terminal-output{
+    width:100%;
+    color:#0052FF;
+    font-size:clamp(0.78rem, 2.1vw, 0.92rem);
+    line-height:1.75;
+    padding:18px 18px 22px;
+  }
+  .terminal-output .row{
+    white-space:pre-wrap;
+    word-break:break-word;
+  }
+  .terminal-output .status::before{
+    content:'> ';
+    opacity:0.7;
+  }
+  .terminal-output .label{
+    color:#3A5DBF;
+  }
+  .terminal-output .value{
+    color:#0052FF;
+    font-weight:bold;
+  }
+  .terminal-output .err{
+    color:#FF4444;
+  }
+  .terminal-output .note{
+    font-size:0.68rem;
+    color:#2a3550;
+    margin-bottom:2px;
+    font-style:italic;
+  }
+  .terminal-output .warn{
+    color:#5C8CFF;
+    opacity:0.85;
+  }
+
+  /* ── panda beslenme ekranı ─────────────────────────────────────── */
+  #panda-body{
+    padding:0 0 24px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    text-align:center;
+  }
+  #panda-viewport{
+    position:relative;
+    width:100%;
+    background:
+      linear-gradient(rgba(0,82,255,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,82,255,0.05) 1px, transparent 1px);
+    background-size:22px 22px;
+    background-color:#010204;
+    border-bottom:1px solid #0d1524;
+    padding:10px 12px 4px;
+    overflow:hidden;
+  }
+  #panda-viewport .hud-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    font-size:0.55rem;
+    letter-spacing:1px;
+    color:#3A5DBF;
+    line-height:1.6;
+  }
+  #panda-viewport .hud-tc{
+    position:absolute;
+    left:50%;
+    top:10px;
+    transform:translateX(-50%);
+    color:#5C8CFF;
+    text-align:center;
+    white-space:nowrap;
+  }
+  #panda-viewport .hud-tr{
+    color:#2E7D4F;
+    text-align:right;
+  }
+  #panda-viewport .hud-dim{
+    color:#22406B;
+  }
+  #panda-viewport .hud-br{
+    text-align:right;
+    color:#5C8CFF;
+  }
+  #panda-emoji{
+    width:100%;
+    height:230px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    filter: drop-shadow(0 0 18px rgba(0,82,255,0.3));
+  }
+  #panda-emoji canvas{
+    display:block;
+    touch-action:none;
+  }
+  #panda-loading{
+    font-size:0.7rem;
+    color:#3A5DBF;
+    letter-spacing:1px;
+  }
+  .egg-placeholder{
+    font-size:3rem;
+  }
+  #panda-stage-label{
+    margin-top:16px;
+    font-size:0.85rem;
+    letter-spacing:2px;
+    color:#0052FF;
+    font-weight:bold;
+    text-transform:uppercase;
+  }
+  #panda-mood{
+    margin-top:6px;
+    font-size:0.72rem;
+    color:#5C8CFF;
+    letter-spacing:1px;
+  }
+  #panda-countdown{
+    margin-top:8px;
+    font-size:0.9rem;
+    color:#0052FF;
+    font-weight:bold;
+    letter-spacing:1px;
+  }
+  #panda-progress-track{
+    width:100%;
+    max-width:280px;
+    height:8px;
+    border:1px solid #12203a;
+    margin-top:18px;
+    background:#050810;
+  }
+  #panda-progress-fill{
+    height:100%;
+    width:0%;
+    background:#0052FF;
+    box-shadow:0 0 10px rgba(0,82,255,0.5);
+    transition: width .3s ease;
+  }
+  #panda-progress-label{
+    margin-top:6px;
+    font-size:0.65rem;
+    color:#3A5DBF;
+    letter-spacing:1px;
+  }
+  #panda-stats{
+    margin-top:18px;
+    width:100%;
+    font-size:0.75rem;
+    color:#3A5DBF;
+    text-align:left;
+    max-width:280px;
+    line-height:1.9;
+  }
+  #panda-stats .p-value{
+    color:#0052FF;
+    font-weight:bold;
+  }
+
+  #sound-toggle{
+    position:fixed;
+    top:16px;
+    right:16px;
+    z-index:5;
+    background:transparent;
+    border:1px solid #12203a;
+    color:#5C8CFF;
+    font-size:14px;
+    width:34px;
+    height:34px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  #sound-toggle:hover{
+    border-color:#0052FF;
+  }
+  .terminal-output .section{
+    margin-top:16px;
+    margin-bottom:6px;
+    font-size:0.72rem;
+    letter-spacing:3px;
+    color:#22406B;
+  }
+  .terminal-output .section:first-child{
+    margin-top:0;
+  }
+  .terminal-output .section::before{
+    content:'// ';
+  }
+
+  /* ── airdrop vurgu kutusu ─────────────────────── */
+  .terminal-output .airdrop-box{
+    margin-top:18px;
+    padding:14px 16px;
+    border:1px solid #0052FF;
+    box-shadow: 0 0 20px rgba(0,82,255,0.18) inset, 0 0 24px rgba(0,82,255,0.12);
+    background: rgba(0,82,255,0.04);
+  }
+  .terminal-output .airdrop-box .ad-label{
+    font-size:0.68rem;
+    letter-spacing:3px;
+    color:#5C8CFF;
+    margin-bottom:4px;
+  }
+  .terminal-output .airdrop-box .ad-amount{
+    font-size:clamp(1.2rem, 4vw, 1.6rem);
+    font-weight:bold;
+    color:#0052FF;
+    text-shadow:0 0 16px rgba(0,82,255,0.5);
+  }
+  .terminal-output .airdrop-box .ad-note{
+    font-size:0.68rem;
+    color:#3A4658;
+    margin-top:6px;
+    letter-spacing:0.5px;
+  }
+
+  .share-btn{
+    display:block;
+    margin:16px auto 0;
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:0.78rem;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:11px 22px;
+    background:transparent;
+    color:#0052FF;
+    border:1px solid #0052FF;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .share-btn:hover, .share-btn:active{
+    background:#0052FF;
+    color:#000;
+    box-shadow:0 0 18px rgba(0,82,255,0.35);
+  }
+
+  .choice-row{
+    display:flex;
+    gap:12px;
+    margin-top:12px;
+  }
+  .choice-btn{
+    flex:1;
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:0.8rem;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:10px 0;
+    background:transparent;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .choice-btn.yes{
+    border:1px solid #0052FF;
+    color:#0052FF;
+  }
+  .choice-btn.yes:hover{
+    background:#0052FF;
+    color:#000;
+    box-shadow:0 0 18px rgba(0,82,255,0.35);
+  }
+  .choice-btn.no{
+    border:1px solid #2a3550;
+    color:#5a6478;
+  }
+  .choice-btn.no:hover{
+    border-color:#5a6478;
+    color:#9aa4b8;
+  }
+  .choice-row.answered .choice-btn{
+    opacity:0.4;
+    pointer-events:none;
+  }
+
+  .type-cursor{
+    display:inline-block;
+    width:0.55ch;
+    background:#0052FF;
+    margin-left:2px;
+    animation: blink 0.9s steps(1) infinite;
+  }
+  .end-cursor{
+    display:inline-block;
+    width:0.55ch;
+    height:1em;
+    background:#0052FF;
+    margin-top:14px;
+    animation: blink 1s steps(1) infinite;
+  }
+
+  /* ── alt sabit ASCII logo ─────────────────────── */
+  #brand-footer{
+    position:fixed;
+    left:0; right:0; bottom:22px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    pointer-events:none;
+    z-index:2;
+  }
+  body.scanning #brand-footer{
+    position:static;
+    margin-top:48px;
+    padding-bottom:24px;
+    pointer-events:auto;
+  }
+  #brand-footer pre{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:9px;
+    line-height:9px;
+    color:#0052FF;
+    opacity:0.55;
+    text-shadow:0 0 8px rgba(0,82,255,0.35);
+    margin:0;
+  }
+  #brand-footer .brand-text{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:11px;
+    letter-spacing:6px;
+    color:#0052FF;
+    opacity:0.45;
+  }
+  #brand-footer .partners{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:10px;
+    letter-spacing:1.5px;
+    color:#3A5DBF;
+    text-align:center;
+    opacity:0.7;
+  }
+  #brand-footer .partners .p-label{
+    color:#22406B;
+    letter-spacing:3px;
+    margin-right:6px;
+  }
+  #brand-footer .partners .p-sep{
+    color:#12203a;
+    margin:0 8px;
+  }
