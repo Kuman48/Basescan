@@ -34,6 +34,7 @@
   <div id="airdrop-tasks">
     <button class="menu-btn mb-14" id="gmgn-task-btn">GM / GN</button>
     <button class="menu-btn" id="panda-task-btn">Feed Panda</button>
+    <button class="menu-btn" id="leaderboard-task-btn">Leaderboard 🏆</button>
   </div>
 </div>
 
@@ -85,16 +86,38 @@
         </div>
       </div>
       <div id="panda-stage-label">Egg</div>
+      <div id="panda-name-display"></div>
       <div id="panda-mood">// connecting...</div>
       <div id="panda-countdown"></div>
       <div id="panda-progress-track"><div id="panda-progress-fill"></div></div>
       <div id="panda-progress-label"></div>
       <div id="panda-stats"></div>
+
+      <div id="panda-name-form">
+        <input type="text" id="panda-name-input" class="field panda-name-input" placeholder="NAME YOUR PANDA" maxlength="20" spellcheck="false" autocomplete="off">
+        <button class="menu-btn panda-btn-second" id="panda-name-btn">Confirm Name (tx)</button>
+      </div>
+
       <button class="menu-btn panda-btn-first" id="panda-feed-btn">Feed 🍃 (free)</button>
       <button class="menu-btn panda-btn-second" id="panda-premium-btn">Premium Bamboo 🎋 (~$0.10)</button>
     </div>
   </div>
   <button class="menu-btn back-btn" id="panda-back-btn">← Back</button>
+</div>
+
+<!-- ── EKRAN 6: LEADERBOARD ──────────────────────────────────── -->
+<div id="screen-leaderboard" class="screen">
+  <div id="leaderboard-window" class="term-window">
+    <div class="win-head">
+      <span class="dot live"></span><span class="dot"></span><span class="dot"></span>
+      <span class="win-title">root@base:~/leaderboard</span>
+    </div>
+    <div id="leaderboard-body">
+      <div class="tasks-label">// TOP PANDAS</div>
+      <div id="leaderboard-list"><span id="leaderboard-loading">// loading leaderboard...</span></div>
+    </div>
+  </div>
+  <button class="menu-btn back-btn" id="leaderboard-back-btn">← Back</button>
 </div>
 
 <div id="brand-footer">

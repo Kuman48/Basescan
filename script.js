@@ -16,15 +16,21 @@ const GMGN_ABI = [
 const GMGN_COOLDOWN_SECONDS = 20 * 60 * 60; // kontrattaki COOLDOWN ile aynı (20 saat)
 
 // Panda kontratı — deploy edildikten sonra adres buraya girilecek.
-const PANDA_CONTRACT_ADDRESS = "0xc766f450532e8ff81d4d822c7daf92e51d14a5c2";
+const PANDA_CONTRACT_ADDRESS = "0x8f416629f012bbd1e11165f73d62f97eb0dc611c";
 const PANDA_ABI = [
   "function feed() external",
   "function feedPremium() external payable",
+  "function setName(string name) external",
+  "function setVariant(uint8 variantId) external",
   "function canFeed(address user) external view returns (bool)",
   "function premiumFeedsRemainingToday(address user) external view returns (uint32)",
   "function premiumPriceWei() external view returns (uint256)",
   "function getLevel(address user) external view returns (uint8)",
-  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 xp, uint32 streak, uint32 bestStreak, uint8 level, uint32 premiumRemaining)"
+  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 xp, uint32 streak, uint32 bestStreak, uint8 level, uint32 premiumRemaining)",
+  "function getProfile(address user) external view returns (string name, uint8 variant)",
+  "function getOwnersCount() external view returns (uint256)",
+  "function getAllOwners() external view returns (address[])",
+  "function VARIANT_UNLOCK_LEVEL() external view returns (uint8)"
 ];
 const PANDA_COOLDOWN_SECONDS = 6 * 60 * 60;
 const PANDA_STREAK_WINDOW_SECONDS = 12 * 60 * 60;
@@ -84,7 +90,7 @@ const screenStage = document.getElementById('stage');
 const gatePass = document.getElementById('gate-pass');
 
 function goToScreen(el){
-  [screenGate, screenMenu, screenStage, screenGmgn, screenPanda].forEach(s => s.classList.remove('active'));
+  [screenGate, screenMenu, screenStage, screenGmgn, screenPanda, screenLeaderboard].forEach(s => s.classList.remove('active'));
   el.classList.add('active');
 }
 
@@ -156,6 +162,9 @@ const pandaTaskBtn = document.getElementById('panda-task-btn');
 const pandaBackBtn = document.getElementById('panda-back-btn');
 const pandaFeedBtn = document.getElementById('panda-feed-btn');
 const pandaPremiumBtn = document.getElementById('panda-premium-btn');
+const pandaNameDisplay = document.getElementById('panda-name-display');
+const pandaNameInput = document.getElementById('panda-name-input');
+const pandaNameBtn = document.getElementById('panda-name-btn');
 const pandaEmoji = document.getElementById('panda-emoji');
 const pandaStageLabel = document.getElementById('panda-stage-label');
 const pandaMood = document.getElementById('panda-mood');
@@ -333,6 +342,13 @@ function renderPandaStats(s){
   const bestStreak = Number(s.bestStreak);
   const lastFed = Number(s.lastFed);
   const premiumRemaining = Number(s.premiumRemaining);
+  const pandaName = s.name || '';
+
+  pandaNameDisplay.textContent = pandaName ? `"${pandaName}"` : '// unnamed';
+  if(!pandaNameInput.matches(':focus')){
+    pandaNameInput.value = '';
+    pandaNameInput.placeholder = pandaName ? `RENAME (current: ${pandaName})` : 'NAME YOUR PANDA';
+  }
 
   const stage = PANDA_STAGES[Math.min(level, PANDA_STAGES.length - 1)];
   pandaStageLabel.textContent = stage.label;
@@ -432,8 +448,11 @@ async function loadPandaScreen(address){
   }
   try{
     const contract = getPandaContract();
-    const stats = await contract.getStats(address);
-    renderPandaStats(stats);
+    const [stats, profile] = await Promise.all([
+      contract.getStats(address),
+      contract.getProfile(address)
+    ]);
+    renderPandaStats({ ...stats, name: profile.name, variant: profile.variant });
   }catch(err){
     pandaMood.textContent = `// Hata: ${err.message || 'veri okunamadı'}`;
   }
@@ -500,9 +519,116 @@ pandaPremiumBtn.addEventListener('click', async () => {
   }
 });
 
+pandaNameBtn.addEventListener('click', async () => {
+  if(!PANDA_CONTRACT_ADDRESS || !connectedAddress) return;
+  const name = pandaNameInput.value.trim();
+  if(!name){
+    alert('Bir isim yaz.');
+    return;
+  }
+  if(name.length > 20){
+    alert('İsim en fazla 20 karakter olabilir.');
+    return;
+  }
+  pandaNameBtn.disabled = true;
+  const originalText = pandaNameBtn.textContent;
+  pandaNameBtn.textContent = 'Confirm in wallet...';
+  try{
+    const contract = getPandaContract();
+    const tx = await sendWithAttribution(contract, 'setName', [name]);
+    pandaNameBtn.textContent = 'Saving...';
+    await tx.wait();
+    await loadPandaScreen(connectedAddress);
+  }catch(err){
+    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    alert(reason);
+  }
+  pandaNameBtn.textContent = originalText;
+  pandaNameBtn.disabled = false;
+});
+
 pandaBackBtn.addEventListener('click', () => {
   if(pandaCountdownTimer){ clearInterval(pandaCountdownTimer); pandaCountdownTimer = null; }
   stopPandaAnimation();
+  goToScreen(screenMenu);
+});
+
+/* ── Leaderboard ───────────────────────────────────────────────── */
+const screenLeaderboard = document.getElementById('screen-leaderboard');
+const leaderboardTaskBtn = document.getElementById('leaderboard-task-btn');
+const leaderboardBackBtn = document.getElementById('leaderboard-back-btn');
+const leaderboardList = document.getElementById('leaderboard-list');
+
+async function loadLeaderboard(){
+  leaderboardList.innerHTML = '<span id="leaderboard-loading">// loading leaderboard...</span>';
+
+  if(!PANDA_CONTRACT_ADDRESS){
+    leaderboardList.textContent = '// Kontrat henüz deploy edilmedi — çok yakında aktif olacak.';
+    return;
+  }
+
+  try{
+    const provider = new ethers.providers.JsonRpcProvider('https://mainnet.base.org');
+    const contract = new ethers.Contract(PANDA_CONTRACT_ADDRESS, PANDA_ABI, provider);
+
+    const owners = await contract.getAllOwners();
+    if(!owners || owners.length === 0){
+      leaderboardList.textContent = '// Henüz kimse beslenmemiş — ilk sen ol!';
+      return;
+    }
+
+    const entries = await Promise.all(owners.map(async (addr) => {
+      try{
+        const [s, profile] = await Promise.all([
+          contract.getStats(addr),
+          contract.getProfile(addr)
+        ]);
+        return { address: addr, name: profile.name || '', xp: Number(s.xp), level: Number(s.level) };
+      }catch(e){
+        return null;
+      }
+    }));
+
+    const ranked = entries
+      .filter(e => e !== null)
+      .sort((a, b) => b.xp - a.xp)
+      .slice(0, 20);
+
+    leaderboardList.innerHTML = '';
+    ranked.forEach((entry, i) => {
+      const row = document.createElement('div');
+      row.className = 'leaderboard-row';
+
+      const rank = document.createElement('span');
+      rank.className = 'lb-rank' + (i < 3 ? ' lb-top' : '');
+      rank.textContent = `#${i + 1}`;
+
+      const name = document.createElement('span');
+      name.className = 'lb-name';
+      // Güvenlik: name kullanıcı tarafından (on-chain) belirlenmiş olabilir —
+      // textContent kullanılıyor, innerHTML KULLANILMIYOR (XSS koruması).
+      name.textContent = entry.name ? entry.name : shortAddr(entry.address);
+
+      const xp = document.createElement('span');
+      xp.className = 'lb-xp';
+      xp.textContent = `${entry.xp} XP`;
+
+      row.appendChild(rank);
+      row.appendChild(name);
+      row.appendChild(xp);
+      leaderboardList.appendChild(row);
+    });
+  }catch(err){
+    leaderboardList.textContent = `// Hata: ${err.message || 'liderlik tablosu yüklenemedi'}`;
+  }
+}
+
+leaderboardTaskBtn.addEventListener('click', () => {
+  goToScreen(screenLeaderboard);
+  loadLeaderboard();
+});
+
+leaderboardBackBtn.addEventListener('click', () => {
   goToScreen(screenMenu);
 });
 

@@ -235,7 +235,7 @@
     background:#020305;
     box-shadow: 0 0 40px rgba(0,82,255,0.06);
   }
-  #gmgn-terminal-window, #panda-window{
+  #gmgn-terminal-window, #panda-window, #leaderboard-window{
     display:block;
   }
   .mb-14{ margin-bottom:14px; }
@@ -424,6 +424,78 @@
   #panda-stats .p-value{
     color:#0052FF;
     font-weight:bold;
+  }
+
+  #panda-name-display{
+    margin-top:4px;
+    font-size:0.8rem;
+    color:#5C8CFF;
+    letter-spacing:1px;
+    font-style:italic;
+  }
+
+  #panda-name-form{
+    margin-top:16px;
+    width:100%;
+    max-width:280px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .panda-name-input{
+    font-size:0.85rem !important;
+    letter-spacing:1px !important;
+    text-transform:none !important;
+    text-align:center;
+    border:1px solid #12203a !important;
+    padding:10px 12px;
+    animation:none !important;
+  }
+  .panda-name-input:focus{
+    border-color:#0052FF !important;
+    outline:none;
+  }
+
+  /* ── liderlik tablosu ─────────────────────────────────────────── */
+  #leaderboard-body{
+    padding:18px 18px 22px;
+  }
+  #leaderboard-loading{
+    font-size:0.75rem;
+    color:#3A5DBF;
+  }
+  .leaderboard-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 0;
+    border-bottom:1px solid #0d1524;
+    font-size:0.8rem;
+  }
+  .leaderboard-row:last-child{
+    border-bottom:none;
+  }
+  .lb-rank{
+    color:#3A5DBF;
+    width:28px;
+    flex-shrink:0;
+  }
+  .lb-rank.lb-top{
+    color:#0052FF;
+    font-weight:bold;
+  }
+  .lb-name{
+    flex:1;
+    color:#E6E9EF;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .lb-xp{
+    color:#0052FF;
+    font-weight:bold;
+    flex-shrink:0;
   }
 
   #sound-toggle{
