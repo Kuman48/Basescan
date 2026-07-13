@@ -197,6 +197,9 @@ function initPandaThree(){
   pandaRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   pandaRenderer.setSize(width, height);
   pandaRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  pandaRenderer.outputEncoding = THREE.sRGBEncoding;
+  pandaRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  pandaRenderer.toneMappingExposure = 1.0;
   container.innerHTML = '';
   container.appendChild(pandaRenderer.domElement);
 
@@ -211,14 +214,14 @@ function initPandaThree(){
     pandaControls.update();
   }
 
-  pandaScene.add(new THREE.AmbientLight(0xffffff, 1.1));
-  const keyLight = new THREE.DirectionalLight(0xaaccff, 1.3);
+  pandaScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const keyLight = new THREE.DirectionalLight(0xaaccff, 0.8);
   keyLight.position.set(2, 3, 4);
   pandaScene.add(keyLight);
-  const rimLight = new THREE.DirectionalLight(0x0052ff, 0.9);
+  const rimLight = new THREE.DirectionalLight(0x0052ff, 0.5);
   rimLight.position.set(-3, 2, -2);
   pandaScene.add(rimLight);
-  const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
   fillLight.position.set(0, -2, 3);
   pandaScene.add(fillLight);
 
