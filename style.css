@@ -434,6 +434,125 @@
     font-style:italic;
   }
 
+  #panda-battle-stats{
+    display:none;
+    width:100%;
+    max-width:280px;
+    margin-top:18px;
+  }
+  #panda-battle-stats.visible{
+    display:block;
+  }
+  #panda-battle-values{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:10px;
+  }
+  .battle-stat-box{
+    border:1px solid #12203a;
+    padding:10px;
+    text-align:center;
+  }
+  .battle-stat-box .bs-label{
+    font-size:0.65rem;
+    color:#3A5DBF;
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  .battle-stat-box .bs-value{
+    font-size:1.1rem;
+    color:#0052FF;
+    font-weight:bold;
+    margin-top:4px;
+  }
+  .battle-stat-box.bs-level{
+    grid-column:1 / -1;
+    background:rgba(0,82,255,0.06);
+    border-color:#0052FF;
+  }
+  .battle-stat-box.bs-level .bs-value{
+    font-size:1.4rem;
+  }
+
+  #panda-stat-upgrade{
+    display:none;
+    width:100%;
+    max-width:280px;
+    margin-top:18px;
+    border:1px solid #0052FF;
+    padding:14px;
+    box-shadow:0 0 16px rgba(0,82,255,0.15);
+  }
+  #panda-stat-upgrade.visible{
+    display:block;
+  }
+  #panda-stat-upgrade-label{
+    font-size:0.72rem;
+    letter-spacing:2px;
+    color:#5C8CFF;
+    text-align:center;
+    margin-bottom:10px;
+    animation: blink 1.4s steps(1) infinite;
+  }
+  #panda-stat-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .stat-upgrade-btn{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:0.75rem;
+    letter-spacing:1px;
+    padding:12px 6px;
+    background:transparent;
+    border:1px solid #0052FF;
+    color:#0052FF;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .stat-upgrade-btn:hover{
+    background:#0052FF;
+    color:#000;
+  }
+
+  #panda-variant-select{
+    display:none;
+    width:100%;
+    max-width:280px;
+    margin-top:20px;
+  }
+  #panda-variant-select.visible{
+    display:block;
+  }
+  #panda-variant-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .variant-btn{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:0.75rem;
+    letter-spacing:1px;
+    padding:12px 6px;
+    background:transparent;
+    border:1px solid #1a2438;
+    color:#5a6478;
+    cursor:pointer;
+    transition: all .15s ease;
+  }
+  .variant-btn:hover{
+    border-color:#0052FF;
+    color:#0052FF;
+  }
+  .variant-btn.selected{
+    border-color:#0052FF;
+    background:rgba(0,82,255,0.1);
+    color:#0052FF;
+    font-weight:bold;
+    box-shadow:0 0 12px rgba(0,82,255,0.25);
+  }
+
   #panda-name-form{
     margin-top:16px;
     width:100%;

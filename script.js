@@ -16,40 +16,55 @@ const GMGN_ABI = [
 const GMGN_COOLDOWN_SECONDS = 20 * 60 * 60; // kontrattaki COOLDOWN ile aynı (20 saat)
 
 // Panda kontratı — deploy edildikten sonra adres buraya girilecek.
-const PANDA_CONTRACT_ADDRESS = "0x8f416629f012bbd1e11165f73d62f97eb0dc611c";
+const PANDA_CONTRACT_ADDRESS = "0xad706978c08d860681899bdad410da6e884dfc0d";
 const PANDA_ABI = [
   "function feed() external",
   "function feedPremium() external payable",
   "function setName(string name) external",
   "function setVariant(uint8 variantId) external",
+  "function upgradeStat(uint8 statId) external",
   "function canFeed(address user) external view returns (bool)",
   "function premiumFeedsRemainingToday(address user) external view returns (uint32)",
   "function premiumPriceWei() external view returns (uint256)",
-  "function getLevel(address user) external view returns (uint8)",
-  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 xp, uint32 streak, uint32 bestStreak, uint8 level, uint32 premiumRemaining)",
+  "function getStats(address user) external view returns (uint256 lastFed, uint32 feedCount, uint32 xp, uint32 streak, uint32 bestStreak, uint32 premiumRemaining)",
+  "function getBattleStats(address user) external view returns (uint32 level, uint32 attack, uint32 speed, uint32 defense, uint32 luck, uint32 statPoints)",
   "function getProfile(address user) external view returns (string name, uint8 variant)",
   "function getOwnersCount() external view returns (uint256)",
   "function getAllOwners() external view returns (address[])",
-  "function VARIANT_UNLOCK_LEVEL() external view returns (uint8)"
+  "function totalXpForLevel(uint32 level) external pure returns (uint32)"
 ];
 const PANDA_COOLDOWN_SECONDS = 6 * 60 * 60;
 const PANDA_STREAK_WINDOW_SECONDS = 12 * 60 * 60;
-// Not: Görsel büyüme (modelin gerçekten büyümesi) sonraki bir güncellemede
-// eklenecek. Şimdilik yumurtadan çıktıktan sonra tüm seviyelerde aynı
-// "baby panda" modeli kullanılıyor, sadece seviye adı/etiketi değişiyor.
+// Basitleştirildi: artık ara aşama etiketleri (Young Panda/Panda/Elder) yok.
+// Sadece Egg (0-4 XP) ve büyüyen Cub (5-99 XP) var. 100 XP'de seçim açılır,
+// seçimden sonra panda kendi level/istatistik sistemine geçer (bkz. aşağı).
 const PANDA_BASE_SCALE = 0.65;
 const PANDA_STAGES = [
   { label: 'Egg', scale: 0.5, isEgg: true },
-  { label: 'Cub', scale: PANDA_BASE_SCALE },
-  { label: 'Young Panda', scale: PANDA_BASE_SCALE },
-  { label: 'Panda', scale: PANDA_BASE_SCALE },
-  { label: 'Elder Panda', scale: PANDA_BASE_SCALE }
+  { label: 'Cub', scale: PANDA_BASE_SCALE }
 ];
 const PANDA_MODEL_URL = './BlueBabyPanda.glb';
+const EGG_MODEL_URL = './EGG.glb';
 
-// Kontrattaki XP_THRESHOLDS ile birebir aynı — sadece ilerleme çubuğu için.
-// XP_NORMAL=5, XP_PREMIUM=10 (premium normalin 2 katı XP verir).
-const PANDA_XP_THRESHOLDS = [5, 70, 140, 280];
+// 100 XP'de açılan seçilebilir görünümler (kontrattaki VARIANT_UNLOCK_XP ile aynı).
+// Sıra, kontrattaki setVariant(uint8) parametresiyle birebir eşleşmeli.
+const PANDA_VARIANT_UNLOCK_XP = 100;
+const PANDA_VARIANTS = [
+  { file: './Shadow.glb', label: 'Shadow' },
+  { file: './Zephyr.glb', label: 'Zephyr' },
+  { file: './Spektrum.glb', label: 'Spektrum' },
+  { file: './Ninja.glb', label: 'Ninja' },
+  { file: './Nexus.glb', label: 'Nexus' }
+];
+
+const STAT_LABELS = ['Attack', 'Speed', 'Defense', 'Luck'];
+
+// Kontrattaki totalXpForLevel() formülünün birebir aynısı (100 + 45n + 5n², n=level-5)
+function totalXpForLevel(level){
+  if(level <= 5) return 100;
+  const n = level - 5;
+  return 100 + 45 * n + 5 * n * n;
+}
 
 // Base Builder Code attribution (ERC-8021) — her işlemin sonuna eklenir,
 // kontrat çalışmasını etkilemez, sadece base.dev analitiğinde bu uygulamaya
@@ -165,6 +180,12 @@ const pandaPremiumBtn = document.getElementById('panda-premium-btn');
 const pandaNameDisplay = document.getElementById('panda-name-display');
 const pandaNameInput = document.getElementById('panda-name-input');
 const pandaNameBtn = document.getElementById('panda-name-btn');
+const pandaVariantSelect = document.getElementById('panda-variant-select');
+const pandaVariantGrid = document.getElementById('panda-variant-grid');
+const pandaBattleStats = document.getElementById('panda-battle-stats');
+const pandaBattleValues = document.getElementById('panda-battle-values');
+const pandaStatUpgrade = document.getElementById('panda-stat-upgrade');
+const pandaStatGrid = document.getElementById('panda-stat-grid');
 const pandaEmoji = document.getElementById('panda-emoji');
 const pandaStageLabel = document.getElementById('panda-stage-label');
 const pandaMood = document.getElementById('panda-mood');
@@ -244,10 +265,39 @@ function initPandaThree(){
     pandaRenderer.setSize(w, h);
   });
 
+  loadPandaModel(pandaCurrentModelUrl || PANDA_MODEL_URL);
+}
+
+let pandaCurrentModelUrl = null;
+
+/// Modeli (baştaki panda ya da bir Elder Panda varyantı) yükler/değiştirir.
+/// Zaten yüklü bir model varsa önce sahneden kaldırıp belleğini temizler.
+function loadPandaModel(url){
+  if(pandaCurrentModelUrl === url && pandaModel) return; // zaten bu model yüklü
+  pandaCurrentModelUrl = url;
+
+  const container = document.getElementById('panda-emoji');
   const loader = new THREE.GLTFLoader();
+
   loader.load(
-    PANDA_MODEL_URL,
+    url,
     (gltf) => {
+      // eski modeli sahneden kaldır ve belleğini serbest bırak
+      if(pandaModel){
+        pandaScene.remove(pandaModel);
+        pandaModel.traverse((child) => {
+          if(child.geometry) child.geometry.dispose();
+          if(child.material){
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach(m => {
+              if(m.map) m.map.dispose();
+              m.dispose();
+            });
+          }
+        });
+      }
+      if(pandaMixer){ pandaMixer.stopAllAction(); pandaMixer = null; }
+
       pandaModel = gltf.scene;
 
       const box = new THREE.Box3().setFromObject(pandaModel);
@@ -270,7 +320,7 @@ function initPandaThree(){
     undefined,
     (err) => {
       console.error('Panda model yüklenemedi:', err);
-      container.innerHTML = '<span id="panda-loading">🐼</span>';
+      if(container) container.innerHTML = '<span id="panda-loading">🐼</span>';
     }
   );
 }
@@ -337,12 +387,20 @@ function stopPandaAnimation(){
 function renderPandaStats(s){
   const feedCount = Number(s.feedCount);
   const xp = Number(s.xp);
-  const level = Number(s.level);
   const streak = Number(s.streak);
   const bestStreak = Number(s.bestStreak);
   const lastFed = Number(s.lastFed);
   const premiumRemaining = Number(s.premiumRemaining);
   const pandaName = s.name || '';
+  const selectedVariantIdx = Number(s.variant) || 0;
+
+  const battleLevel = Number(s.battleLevel);
+  const attack = Number(s.attack);
+  const speed = Number(s.speed);
+  const defense = Number(s.defense);
+  const luck = Number(s.luck);
+  const statPoints = Number(s.statPoints);
+  const hasSelected = battleLevel >= 5;
 
   pandaNameDisplay.textContent = pandaName ? `"${pandaName}"` : '// unnamed';
   if(!pandaNameInput.matches(':focus')){
@@ -350,40 +408,124 @@ function renderPandaStats(s){
     pandaNameInput.placeholder = pandaName ? `RENAME (current: ${pandaName})` : 'NAME YOUR PANDA';
   }
 
-  const stage = PANDA_STAGES[Math.min(level, PANDA_STAGES.length - 1)];
-  pandaStageLabel.textContent = stage.label;
+  // ── model & etiket ──
+  const isEgg = xp < 5;
+  let targetModelUrl;
 
-  if(stage.isEgg){
-    stopPandaAnimation();
-    pandaEmoji.innerHTML = '<span class="egg-placeholder">🥚</span>';
+  if(hasSelected){
+    targetModelUrl = PANDA_VARIANTS[selectedVariantIdx].file;
+    pandaStageLabel.textContent = `${PANDA_VARIANTS[selectedVariantIdx].label} — Lv.${battleLevel}`;
+    pandaCurrentStageScale = 1.0;
+  }else if(isEgg){
+    targetModelUrl = EGG_MODEL_URL;
+    pandaStageLabel.textContent = 'Egg';
+    pandaCurrentStageScale = 0.5;
   }else{
-    pandaCurrentStageScale = stage.scale;
-    if(pandaEmoji.querySelector('canvas') === null){
-      pandaEmoji.innerHTML = '<span id="panda-loading">// loading panda...</span>';
-      pandaThreeReady = false; // container was cleared, force re-init into it
-    }
-    startPandaAnimation();
+    targetModelUrl = PANDA_MODEL_URL;
+    pandaStageLabel.textContent = 'Cub';
+    pandaCurrentStageScale = PANDA_BASE_SCALE;
   }
 
-  const nextThreshold = level < PANDA_STAGES.length - 1
-    ? PANDA_XP_THRESHOLDS[level]
-    : null;
-  if(nextThreshold){
-    const prevThreshold = level === 0 ? 0 : PANDA_XP_THRESHOLDS[level - 1];
-    const pct = Math.min(100, Math.round(((xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100));
+  if(pandaEmoji.querySelector('canvas') === null){
+    pandaEmoji.innerHTML = '<span id="panda-loading">// loading...</span>';
+    pandaThreeReady = false;
+    pandaCurrentModelUrl = targetModelUrl;
+  }
+  startPandaAnimation();
+
+  if(pandaThreeReady && pandaCurrentModelUrl !== targetModelUrl){
+    loadPandaModel(targetModelUrl);
+  }
+
+  // ── panda seçim ızgarası: yalnızca 100 XP'de ve henüz seçim yapılmadıysa ──
+  if(!hasSelected && xp >= PANDA_VARIANT_UNLOCK_XP){
+    pandaVariantSelect.classList.add('visible');
+    pandaVariantGrid.innerHTML = '';
+    PANDA_VARIANTS.forEach((v, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'variant-btn';
+      btn.textContent = v.label;
+      btn.addEventListener('click', () => selectPandaVariant(idx));
+      pandaVariantGrid.appendChild(btn);
+    });
+  }else{
+    pandaVariantSelect.classList.remove('visible');
+  }
+
+  // ── ilerleme çubuğu ──
+  if(!hasSelected){
+    const pct = Math.min(100, Math.round((xp / PANDA_VARIANT_UNLOCK_XP) * 100));
     pandaProgressFill.style.width = `${pct}%`;
-    pandaProgressLabel.textContent = `${xp} / ${nextThreshold} XP to next stage`;
+    pandaProgressLabel.textContent = `${xp} / ${PANDA_VARIANT_UNLOCK_XP} XP to Choose Your Panda`;
   }else{
-    pandaProgressFill.style.width = '100%';
-    pandaProgressLabel.textContent = `${xp} XP — max stage reached`;
+    const nextThreshold = totalXpForLevel(battleLevel + 1);
+    const prevThreshold = totalXpForLevel(battleLevel);
+    const pct = Math.max(0, Math.min(100, Math.round(((xp - prevThreshold) / (nextThreshold - prevThreshold)) * 100)));
+    pandaProgressFill.style.width = `${pct}%`;
+    pandaProgressLabel.textContent = `${xp} / ${nextThreshold} XP to Level ${battleLevel + 1}`;
   }
 
-  pandaStats.innerHTML = `
-    Total Feeds: <span class="p-value">${feedCount}</span><br>
-    XP: <span class="p-value">${xp}</span><br>
-    Current Streak: <span class="p-value">${streak}</span><br>
-    Best Streak: <span class="p-value">${bestStreak}</span>
-  `;
+  // ── temel istatistikler (güvenli DOM — textContent) ──
+  pandaStats.innerHTML = '';
+  [
+    ['Total Feeds:', feedCount],
+    ['XP:', xp],
+    ['Current Streak:', streak],
+    ['Best Streak:', bestStreak]
+  ].forEach(([label, value]) => {
+    const line = document.createElement('div');
+    line.appendChild(document.createTextNode(label + ' '));
+    const valSpan = document.createElement('span');
+    valSpan.className = 'p-value';
+    valSpan.textContent = value;
+    line.appendChild(valSpan);
+    pandaStats.appendChild(line);
+  });
+
+  // ── savaş istatistikleri + yükseltme (yalnızca seçim yapıldıysa) ──
+  if(hasSelected){
+    pandaBattleStats.classList.add('visible');
+    pandaBattleValues.innerHTML = '';
+
+    [
+      ['Level', battleLevel, true],
+      ['Attack', attack, false],
+      ['Speed', speed, false],
+      ['Defense (HP)', defense, false],
+      ['Luck', `${luck}%`, false]
+    ].forEach(([label, value, isLevel]) => {
+      const box = document.createElement('div');
+      box.className = 'battle-stat-box' + (isLevel ? ' bs-level' : '');
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'bs-label';
+      labelDiv.textContent = label;
+      const valueDiv = document.createElement('div');
+      valueDiv.className = 'bs-value';
+      valueDiv.textContent = value;
+      box.appendChild(labelDiv);
+      box.appendChild(valueDiv);
+      pandaBattleValues.appendChild(box);
+    });
+
+    if(statPoints > 0){
+      pandaStatUpgrade.classList.add('visible');
+      const upgradeLabel = document.getElementById('panda-stat-upgrade-label');
+      upgradeLabel.textContent = `// LEVEL UP! CHOOSE A STAT (${statPoints} available)`;
+      pandaStatGrid.innerHTML = '';
+      STAT_LABELS.forEach((label, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'stat-upgrade-btn';
+        btn.textContent = idx === 3 ? `${label} +5%` : `${label} +5`;
+        btn.addEventListener('click', () => upgradePandaStat(idx));
+        pandaStatGrid.appendChild(btn);
+      });
+    }else{
+      pandaStatUpgrade.classList.remove('visible');
+    }
+  }else{
+    pandaBattleStats.classList.remove('visible');
+    pandaStatUpgrade.classList.remove('visible');
+  }
 
   pandaPremiumBtn.disabled = premiumRemaining <= 0;
   pandaPremiumBtn.textContent = premiumRemaining > 0
@@ -420,7 +562,7 @@ function renderPandaStats(s){
     pandaMood.textContent = moodText;
     pandaFeedBtn.disabled = !canFeedNow;
     pandaFeedBtn.textContent = canFeedNow ? 'Feed 🍃 (free)' : 'Fed — come back later';
-    if(!stage.isEgg) setPandaMood(moodKey);
+    setPandaMood(moodKey);
 
     if(canFeedNow && pandaCountdownTimer){
       clearInterval(pandaCountdownTimer);
@@ -448,11 +590,22 @@ async function loadPandaScreen(address){
   }
   try{
     const contract = getPandaContract();
-    const [stats, profile] = await Promise.all([
+    const [stats, profile, battle] = await Promise.all([
       contract.getStats(address),
-      contract.getProfile(address)
+      contract.getProfile(address),
+      contract.getBattleStats(address)
     ]);
-    renderPandaStats({ ...stats, name: profile.name, variant: profile.variant });
+    renderPandaStats({
+      ...stats,
+      name: profile.name,
+      variant: profile.variant,
+      battleLevel: battle.level,
+      attack: battle.attack,
+      speed: battle.speed,
+      defense: battle.defense,
+      luck: battle.luck,
+      statPoints: battle.statPoints
+    });
   }catch(err){
     pandaMood.textContent = `// Hata: ${err.message || 'veri okunamadı'}`;
   }
@@ -547,6 +700,50 @@ pandaNameBtn.addEventListener('click', async () => {
   pandaNameBtn.disabled = false;
 });
 
+async function selectPandaVariant(variantIdx){
+  if(!PANDA_CONTRACT_ADDRESS || !connectedAddress) return;
+  const buttons = pandaVariantGrid.querySelectorAll('.variant-btn');
+  buttons.forEach(b => b.disabled = true);
+  const clickedBtn = buttons[variantIdx];
+  const originalText = clickedBtn ? clickedBtn.textContent : '';
+  if(clickedBtn) clickedBtn.textContent = 'Confirm in wallet...';
+  try{
+    const contract = getPandaContract();
+    const tx = await sendWithAttribution(contract, 'setVariant', [variantIdx]);
+    if(clickedBtn) clickedBtn.textContent = 'Saving...';
+    await tx.wait();
+    await loadPandaScreen(connectedAddress);
+  }catch(err){
+    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    alert(reason);
+    if(clickedBtn) clickedBtn.textContent = originalText;
+    buttons.forEach(b => b.disabled = false);
+  }
+}
+
+async function upgradePandaStat(statIdx){
+  if(!PANDA_CONTRACT_ADDRESS || !connectedAddress) return;
+  const buttons = pandaStatGrid.querySelectorAll('.stat-upgrade-btn');
+  buttons.forEach(b => b.disabled = true);
+  const clickedBtn = buttons[statIdx];
+  const originalText = clickedBtn ? clickedBtn.textContent : '';
+  if(clickedBtn) clickedBtn.textContent = 'Confirm in wallet...';
+  try{
+    const contract = getPandaContract();
+    const tx = await sendWithAttribution(contract, 'upgradeStat', [statIdx]);
+    if(clickedBtn) clickedBtn.textContent = 'Saving...';
+    await tx.wait();
+    await loadPandaScreen(connectedAddress);
+    setPandaMood('happy');
+    triggerPandaBounce();
+  }catch(err){
+    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    alert(reason);
+    if(clickedBtn) clickedBtn.textContent = originalText;
+    buttons.forEach(b => b.disabled = false);
+  }
+}
+
 pandaBackBtn.addEventListener('click', () => {
   if(pandaCountdownTimer){ clearInterval(pandaCountdownTimer); pandaCountdownTimer = null; }
   stopPandaAnimation();
@@ -583,7 +780,7 @@ async function loadLeaderboard(){
           contract.getStats(addr),
           contract.getProfile(addr)
         ]);
-        return { address: addr, name: profile.name || '', xp: Number(s.xp), level: Number(s.level) };
+        return { address: addr, name: profile.name || '', xp: Number(s.xp) };
       }catch(e){
         return null;
       }
