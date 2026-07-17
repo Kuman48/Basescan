@@ -107,12 +107,20 @@ const gatePass = document.getElementById('gate-pass');
 function goToScreen(el){
   [screenGate, screenMenu, screenStage, screenGmgn, screenPanda, screenLeaderboard].forEach(s => s.classList.remove('active'));
   el.classList.add('active');
+
+  // Uzun içerikli ekranlarda (scanner/GM-GN/panda/leaderboard) sayfa üstten
+  // hizalanır ve alt logo/footer normal akışa geçer (üst üste binmesin diye).
+  const longContentScreens = [screenStage, screenGmgn, screenPanda, screenLeaderboard];
+  document.body.classList.toggle('scanning', longContentScreens.includes(el));
 }
+
+const GATE_STORAGE_KEY = 'baseTerminalUnlocked';
 
 gatePass.addEventListener('keydown', (e) => {
   if(e.key !== 'Enter') return;
   const value = gatePass.value.trim().toUpperCase();
   if(value === 'BASE'){
+    try{ localStorage.setItem(GATE_STORAGE_KEY, '1'); }catch(e){ /* storage kapalıysa sessizce geç */ }
     goToScreen(screenMenu);
   }else{
     screenGate.classList.add('shake');
@@ -120,6 +128,14 @@ gatePass.addEventListener('keydown', (e) => {
     gatePass.value = '';
   }
 });
+
+// Daha önce kod girilmişse (localStorage'da işaretliyse), sayfa yenilenince
+// tekrar kod sormadan direkt menüye geç.
+try{
+  if(localStorage.getItem(GATE_STORAGE_KEY) === '1'){
+    goToScreen(screenMenu);
+  }
+}catch(e){ /* storage kapalıysa sessizce geç, gate ekranı varsayılan kalır */ }
 
 const connectBtn = document.getElementById('menu-connect-btn');
 const airdropTasks = document.getElementById('airdrop-tasks');
