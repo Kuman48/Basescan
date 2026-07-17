@@ -102,7 +102,6 @@ setTimeout(() => { if(bootOverlay) bootOverlay.style.display = 'none'; }, 950);
 const screenGate = document.getElementById('screen-gate');
 const screenMenu = document.getElementById('screen-menu');
 const screenStage = document.getElementById('stage');
-const gatePass = document.getElementById('gate-pass');
 
 function goToScreen(el){
   [screenGate, screenMenu, screenStage, screenGmgn, screenPanda, screenLeaderboard].forEach(s => s.classList.remove('active'));
@@ -116,26 +115,18 @@ function goToScreen(el){
 
 const GATE_STORAGE_KEY = 'baseTerminalUnlocked';
 
-gatePass.addEventListener('keydown', (e) => {
-  if(e.key !== 'Enter') return;
-  const value = gatePass.value.trim().toUpperCase();
-  if(value === 'BASE'){
-    try{ localStorage.setItem(GATE_STORAGE_KEY, '1'); }catch(e){ /* storage kapalıysa sessizce geç */ }
+function enterApp(){
+  if(!screenGate.classList.contains('active') || screenGate.classList.contains('entering')) return;
+  screenGate.classList.add('entering');
+  try{ localStorage.setItem(GATE_STORAGE_KEY, '1'); }catch(e){ /* storage kapalıysa sessizce geç */ }
+  setTimeout(() => {
     goToScreen(screenMenu);
-  }else{
-    screenGate.classList.add('shake');
-    setTimeout(() => screenGate.classList.remove('shake'), 400);
-    gatePass.value = '';
-  }
-});
+    screenGate.classList.remove('entering');
+  }, 900);
+}
 
-// Daha önce kod girilmişse (localStorage'da işaretliyse), sayfa yenilenince
-// tekrar kod sormadan direkt menüye geç.
-try{
-  if(localStorage.getItem(GATE_STORAGE_KEY) === '1'){
-    goToScreen(screenMenu);
-  }
-}catch(e){ /* storage kapalıysa sessizce geç, gate ekranı varsayılan kalır */ }
+screenGate.addEventListener('click', enterApp);
+document.addEventListener('keydown', enterApp);
 
 const connectBtn = document.getElementById('menu-connect-btn');
 const airdropTasks = document.getElementById('airdrop-tasks');
@@ -1600,3 +1591,19 @@ input.addEventListener('keydown', (e) => {
 });
 
 input.addEventListener('focus', () => input.select());
+
+/* ── başlangıç durumu kontrolü ─────────────────────────────────────
+   Bu, dosyanın en sonunda çalışır çünkü goToScreen() içindeki tüm
+   ekran değişkenleri (screenGmgn, screenPanda, screenLeaderboard) bu
+   noktada artık kesin tanımlanmış olur. Daha erken çağrılırsa
+   "temporal dead zone" hatası sessizce yutulup gate ekranı takılı
+   kalıyordu — sayfa yenilenince "daha önce girilmişti" bilgisi hiç
+   işlemiyordu. Düzeltme: kontrolü en sona taşımak. */
+(function initApp(){
+  try{
+    if(localStorage.getItem(GATE_STORAGE_KEY) === '1'){
+      goToScreen(screenMenu);
+    }
+  }catch(e){ /* storage kapalıysa sessizce geç, gate ekranı varsayılan kalır */ }
+})();
+

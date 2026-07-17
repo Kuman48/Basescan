@@ -19,10 +19,11 @@
 
 <button id="sound-toggle" aria-label="Toggle sound">🔊</button>
 
-<!-- ── EKRAN 1: GİRİŞ / PASSWORD ─────────────────────────────── -->
+<!-- ── EKRAN 1: GİRİŞ (tıkla/tuşa bas) ─────────────────────────── -->
 <div id="screen-gate" class="screen active">
-  <div class="gate-label">// ENTER ACCESS CODE TO CONTINUE</div>
-  <input class="field" id="gate-pass" type="text" placeholder="────" spellcheck="false" autocomplete="off" maxlength="16">
+  <div id="gate-symbol">/.</div>
+  <div id="gate-hint">press any key or tap to enter</div>
+  <div id="gate-loading">// initializing...</div>
 </div>
 
 <!-- ── EKRAN 2: MENÜ ─────────────────────────────────────────── -->

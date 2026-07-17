@@ -96,24 +96,40 @@
     #boot-overlay{ animation:none; opacity:0; display:none; }
   }
 
-  /* ── gate ekranı ──────────────────────────────────────────────── */
-  #screen-gate .gate-label{
-    font-size:0.7rem;
-    letter-spacing:3px;
-    color:#3A5DBF;
-    margin-top:26px;
-    margin-bottom:14px;
+  /* ── gate ekranı: tıkla/tuşa bas ile giriş ───────────────────── */
+  #screen-gate{
+    cursor:pointer;
+    justify-content:center;
   }
-  #screen-gate .field{
+  #gate-symbol{
+    font-family:'Share Tech Mono', 'Courier New', monospace;
+    font-size:clamp(3rem, 14vw, 5rem);
+    font-weight:700;
+    color:#0052FF;
+    text-shadow:0 0 24px rgba(0,82,255,0.5);
+    animation: blink 1.2s steps(1) infinite;
+  }
+  #gate-hint{
+    margin-top:18px;
+    font-size:0.75rem;
+    letter-spacing:2px;
+    color:#3A5DBF;
     text-transform:uppercase;
   }
-  #screen-gate.shake .field{
-    animation: shake 0.35s ease;
+  #gate-loading{
+    display:none;
+    margin-top:22px;
+    font-size:0.72rem;
+    letter-spacing:2px;
+    color:#5C8CFF;
   }
-  @keyframes shake{
-    0%, 100%{ transform:translateX(0); }
-    25%{ transform:translateX(-8px); }
-    75%{ transform:translateX(8px); }
+  #screen-gate.entering #gate-symbol,
+  #screen-gate.entering #gate-hint{
+    display:none;
+  }
+  #screen-gate.entering #gate-loading{
+    display:block;
+    animation: blink 0.6s steps(1) infinite;
   }
 
   /* ── menü ekranı ──────────────────────────────────────────────── */
@@ -800,4 +816,15 @@
   #brand-footer .partners .p-sep{
     color:#12203a;
     margin:0 8px;
+  }
+  #brand-footer .partners .p-link{
+    color:#3A5DBF;
+    text-decoration:none;
+    letter-spacing:1.5px;
+    pointer-events:auto;
+    transition: color .15s ease;
+  }
+  #brand-footer .partners .p-link:hover{
+    color:#0052FF;
+    text-decoration:underline;
   }
