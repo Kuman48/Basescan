@@ -142,7 +142,7 @@ connectBtn.addEventListener('click', async () => {
     airdropTasks.classList.add('visible');
   }catch(err){
     connectBtn.textContent = 'Connect Wallet';
-    alert(err.message || 'Bağlantı başarısız.');
+    alert(err.message || 'Connection failed.');
   }
   connectBtn.disabled = false;
 });
@@ -167,7 +167,7 @@ gmgnBtn.addEventListener('click', async () => {
     await addFieldRow('Wallet:', shortAddr(connectedAddress));
     await showGmGnSection(connectedAddress);
   }catch(err){
-    alert(err.message || 'Bağlantı başarısız.');
+    alert(err.message || 'Connection failed.');
   }
   gmgnBtn.textContent = 'GM / GN';
   gmgnBtn.disabled = false;
@@ -585,7 +585,7 @@ function renderPandaStats(s){
 async function loadPandaScreen(address){
   if(pandaCountdownTimer){ clearInterval(pandaCountdownTimer); pandaCountdownTimer = null; }
   if(!PANDA_CONTRACT_ADDRESS){
-    pandaMood.textContent = '// Kontrat henüz deploy edilmedi — çok yakında aktif olacak';
+    pandaMood.textContent = '// Contract not deployed yet — coming online soon';
     pandaCountdown.textContent = '';
     pandaFeedBtn.disabled = true;
     pandaFeedBtn.textContent = 'Coming Soon';
@@ -614,7 +614,7 @@ async function loadPandaScreen(address){
       statPoints: battle.statPoints
     });
   }catch(err){
-    pandaMood.textContent = `// Hata: ${err.message || 'veri okunamadı'}`;
+    pandaMood.textContent = `// Error: ${err.message || 'could not load data'}`;
   }
 }
 
@@ -630,7 +630,7 @@ pandaTaskBtn.addEventListener('click', async () => {
     goToScreen(screenPanda);
     await loadPandaScreen(connectedAddress);
   }catch(err){
-    alert(err.message || 'Bağlantı başarısız.');
+    alert(err.message || 'Connection failed.');
   }
   pandaTaskBtn.textContent = 'Feed Panda';
   pandaTaskBtn.disabled = false;
@@ -650,7 +650,7 @@ pandaFeedBtn.addEventListener('click', async () => {
     setPandaMood('happy');
     triggerPandaBounce();
   }catch(err){
-    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    const reason = err?.reason || err?.error?.message || err?.message || 'Transaction failed.';
     alert(reason);
     pandaFeedBtn.textContent = originalText;
     pandaFeedBtn.disabled = false;
@@ -672,7 +672,7 @@ pandaPremiumBtn.addEventListener('click', async () => {
     setPandaMood('happy');
     triggerPandaBounce();
   }catch(err){
-    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    const reason = err?.reason || err?.error?.message || err?.message || 'Transaction failed.';
     alert(reason);
     pandaPremiumBtn.textContent = originalText;
     pandaPremiumBtn.disabled = false;
@@ -683,11 +683,11 @@ pandaNameBtn.addEventListener('click', async () => {
   if(!PANDA_CONTRACT_ADDRESS || !connectedAddress) return;
   const name = pandaNameInput.value.trim();
   if(!name){
-    alert('Bir isim yaz.');
+    alert('Enter a name.');
     return;
   }
   if(name.length > 20){
-    alert('İsim en fazla 20 karakter olabilir.');
+    alert('Name can be at most 20 characters.');
     return;
   }
   pandaNameBtn.disabled = true;
@@ -700,7 +700,7 @@ pandaNameBtn.addEventListener('click', async () => {
     await tx.wait();
     await loadPandaScreen(connectedAddress);
   }catch(err){
-    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    const reason = err?.reason || err?.error?.message || err?.message || 'Transaction failed.';
     alert(reason);
   }
   pandaNameBtn.textContent = originalText;
@@ -721,7 +721,7 @@ async function selectPandaVariant(variantIdx){
     await tx.wait();
     await loadPandaScreen(connectedAddress);
   }catch(err){
-    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    const reason = err?.reason || err?.error?.message || err?.message || 'Transaction failed.';
     alert(reason);
     if(clickedBtn) clickedBtn.textContent = originalText;
     buttons.forEach(b => b.disabled = false);
@@ -744,7 +744,7 @@ async function upgradePandaStat(statIdx){
     setPandaMood('happy');
     triggerPandaBounce();
   }catch(err){
-    const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+    const reason = err?.reason || err?.error?.message || err?.message || 'Transaction failed.';
     alert(reason);
     if(clickedBtn) clickedBtn.textContent = originalText;
     buttons.forEach(b => b.disabled = false);
@@ -767,7 +767,7 @@ async function loadLeaderboard(){
   leaderboardList.innerHTML = '<span id="leaderboard-loading">// loading leaderboard...</span>';
 
   if(!PANDA_CONTRACT_ADDRESS){
-    leaderboardList.textContent = '// Kontrat henüz deploy edilmedi — çok yakında aktif olacak.';
+    leaderboardList.textContent = '// Contract not deployed yet — coming online soon.';
     return;
   }
 
@@ -777,7 +777,7 @@ async function loadLeaderboard(){
 
     const owners = await contract.getAllOwners();
     if(!owners || owners.length === 0){
-      leaderboardList.textContent = '// Henüz kimse beslenmemiş — ilk sen ol!';
+      leaderboardList.textContent = '// No one has fed yet — be the first!';
       return;
     }
 
@@ -823,7 +823,7 @@ async function loadLeaderboard(){
       leaderboardList.appendChild(row);
     });
   }catch(err){
-    leaderboardList.textContent = `// Hata: ${err.message || 'liderlik tablosu yüklenemedi'}`;
+    leaderboardList.textContent = `// Error: ${err.message || 'could not load leaderboard'}`;
   }
 }
 
@@ -921,13 +921,13 @@ async function apiCall(params, attempt = 1){
         rateLimitNotified = true;
         const row = document.createElement('div');
         row.className = 'row warn';
-        row.textContent = '⏳ Sunucu yoğun, lütfen bekleyin — otomatik tekrar deneniyor...';
+        row.textContent = '⏳ Server busy, please wait — retrying automatically...';
         activeTerminal.appendChild(row);
       }
       await wait(1400 * attempt, 1800 * attempt);
       return apiCall(params, attempt + 1);
     }
-    throw new Error('Rate limit exceeded — lütfen birkaç dakika sonra tekrar deneyin.');
+    throw new Error('Rate limit exceeded — please try again in a few minutes.');
   }
 
   if(!res.ok) throw new Error('network');
@@ -940,13 +940,13 @@ async function apiCall(params, attempt = 1){
         rateLimitNotified = true;
         const row = document.createElement('div');
         row.className = 'row warn';
-        row.textContent = '⏳ Sunucu yoğun, lütfen bekleyin — otomatik tekrar deneniyor...';
+        row.textContent = '⏳ Server busy, please wait — retrying automatically...';
         activeTerminal.appendChild(row);
       }
       await wait(1400 * attempt, 1800 * attempt);
       return apiCall(params, attempt + 1);
     }
-    throw new Error('Rate limit exceeded — lütfen birkaç dakika sonra tekrar deneyin.');
+    throw new Error('Rate limit exceeded — please try again in a few minutes.');
   }
 
   return data;
@@ -999,14 +999,14 @@ function calculateAirdrop(d, basename){
   breakdown.push({
     label: 'Activity Volume',
     points: activityPts,
-    note: `${d.txCount} tx — network kullanım hacmi`
+    note: `${d.txCount} tx — network activity volume`
   });
 
   const longevityPts = Math.round(Math.min(d.walletAgeDays, 730) * 1.1);
   breakdown.push({
     label: 'Longevity',
     points: longevityPts,
-    note: `${d.walletAgeDays} gün — erken/uzun süreli kullanıcı sinyali`
+    note: `${d.walletAgeDays} days — early/long-term user signal`
   });
 
   const consistencyPts = Math.round(
@@ -1016,28 +1016,28 @@ function calculateAirdrop(d, basename){
   breakdown.push({
     label: 'Consistency',
     points: consistencyPts,
-    note: `${d.distinctMonthsActive || 0} farklı ayda aktif — Arbitrum tarzı süreklilik bonusu`
+    note: `${d.distinctMonthsActive || 0} distinct active months — Arbitrum-style consistency bonus`
   });
 
   const gasPts = Math.round(Math.min(d.gasSpentEth * 25000, 900));
   breakdown.push({
     label: 'Gas Contribution',
     points: gasPts,
-    note: `${d.gasSpentEth.toFixed(4)} ETH — gerçek ağ kullanımı / fee katkısı`
+    note: `${d.gasSpentEth.toFixed(4)} ETH — real network usage / fee contribution`
   });
 
   const assetPts = Math.round(Math.min(d.totalAssetsUsd, 5000) * 0.1);
   breakdown.push({
     label: 'Asset Commitment',
     points: assetPts,
-    note: `$${fmtNum(d.totalAssetsUsd)} — sermaye bağlılığı`
+    note: `$${fmtNum(d.totalAssetsUsd)} — capital commitment`
   });
 
   const nftPts = Math.round(Math.min(d.nftCount, 50) * 6);
   breakdown.push({
     label: 'Ecosystem Diversity',
     points: nftPts,
-    note: `${d.nftCount} NFT — ekosistem içi çeşitlilik`
+    note: `${d.nftCount} NFT — ecosystem diversity`
   });
 
   const rawScore = activityPts + longevityPts + consistencyPts + gasPts + assetPts + nftPts;
@@ -1046,7 +1046,7 @@ function calculateAirdrop(d, basename){
   breakdown.push({
     label: 'Identity Bonus',
     points: identityPts,
-    note: basename ? `Basename sahibi (${basename}) — topluluk kimliği / sybil-direnç sinyali` : 'Basename yok — bonus uygulanmadı'
+    note: basename ? `Has Basename (${basename}) — community identity / sybil-resistance signal` : 'No Basename — bonus not applied'
   });
 
   const totalScore = rawScore + identityPts;
@@ -1110,7 +1110,7 @@ async function fetchWalletData(address){
     walletAgeDays = Math.floor((now - firstTs) / 86400000);
 
     const hoursAgo = Math.max(1, Math.floor((now - lastTs) / 3600000));
-    lastTxAgoText = hoursAgo < 24 ? `${hoursAgo} saat önce` : `${Math.floor(hoursAgo/24)} gün önce`;
+    lastTxAgoText = hoursAgo < 24 ? `${hoursAgo}h ago` : `${Math.floor(hoursAgo/24)}d ago`;
 
     const dateSet = new Set();
     const monthCount = {};
@@ -1218,7 +1218,7 @@ async function showAirdropBox(data){
   box.innerHTML = `
     <div class="ad-label">ESTIMATED AIRDROP</div>
     <div class="ad-amount">~${fmtNum(data.airdrop.amount, 0)} $BASE</div>
-    <div class="ad-note">Tier: ${data.airdrop.tier}${data.basename ? ' · Basename bonus applied' : ''} — tahmini, resmi değil</div>
+    <div class="ad-note">Tier: ${data.airdrop.tier}${data.basename ? ' · Basename bonus applied' : ''} — estimated, not official</div>
   `;
   activeTerminal.appendChild(box);
 
@@ -1235,12 +1235,12 @@ async function showAirdropBox(data){
 /* ── Cüzdan bağlama (MetaMask / Coinbase Wallet / EIP-1193) ─────── */
 async function connectWallet(){
   if(!window.ethereum){
-    throw new Error('Cüzdan bulunamadı. MetaMask veya Coinbase Wallet uygulaması içinden açmayı dene.');
+    throw new Error('Wallet not found. Try opening this from inside the MetaMask or Coinbase Wallet app.');
   }
 
   const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
   if(!accounts || accounts.length === 0){
-    throw new Error('Cüzdan bağlantısı reddedildi.');
+    throw new Error('Wallet connection rejected.');
   }
 
   const currentChain = await window.ethereum.request({ method: 'eth_chainId' });
@@ -1257,7 +1257,7 @@ async function connectWallet(){
           params: [BASE_CHAIN_PARAMS]
         });
       }else{
-        throw new Error('Base ağına geçiş reddedildi.');
+        throw new Error('Switch to Base network was rejected.');
       }
     }
   }
@@ -1280,7 +1280,7 @@ async function showGmGnSection(walletAddress){
   addSection('GM / GN — ON-CHAIN CHECK-IN');
 
   if(!GMGN_CONTRACT_ADDRESS){
-    await addRow('Kontrat henüz deploy edilmedi — çok yakında aktif olacak.', 'status');
+    await addRow('Contract not deployed yet — coming online soon.', 'status');
     return;
   }
 
@@ -1296,7 +1296,7 @@ async function showGmGnSection(walletAddress){
     lastGm = Number(s.lastGm);
     lastGn = Number(s.lastGn);
   }catch(e){
-    await addRow('Streak verisi okunamadı, yine de check-in yapabilirsin.', 'status');
+    await addRow('Could not load streak data — you can still check in.', 'status');
   }
 
   const gmCountdownEl = document.createElement('div');
@@ -1337,16 +1337,16 @@ async function showGmGnSection(walletAddress){
   const doCheckIn = async (type, btn) => {
     btn.disabled = true;
     try{
-      await addRow(`${type.toUpperCase()} işlemi gönderiliyor, cüzdanda onayla...`, 'status');
+      await addRow(`Sending ${type.toUpperCase()} transaction, confirm in wallet...`, 'status');
       const tx = await sendWithAttribution(contract, type);
-      await addRow('İşlem onaylanıyor...', 'status');
+      await addRow('Confirming transaction...', 'status');
       await tx.wait();
-      await addRow(`${type.toUpperCase()} başarılı! Streak güncellendi.`, 'value');
+      await addRow(`${type.toUpperCase()} successful! Streak updated.`, 'value');
       const now = Math.floor(Date.now() / 1000);
       if(type === 'gm') lastGm = now; else lastGn = now;
       updateGmGnCountdown();
     }catch(err){
-      const reason = err?.reason || err?.error?.message || err?.message || 'İşlem başarısız.';
+      const reason = err?.reason || err?.error?.message || err?.message || 'Transaction failed.';
       await addRow(`Hata: ${reason}`, 'err');
     }
     btn.disabled = false;
@@ -1386,7 +1386,7 @@ async function askIncreaseAirdrop(){
           await addRow(`Wallet connected: ${shortAddr(address)}`, 'value');
           await showGmGnSection(address);
         }catch(err){
-          await addRow(`Error: ${err.message || 'Bağlantı başarısız.'}`, 'err');
+          await addRow(`Error: ${err.message || 'Connection failed.'}`, 'err');
         }
       }else{
         await addRow('Ok, maybe next time.', 'status');
@@ -1461,7 +1461,7 @@ async function buildShareImageBlob(data){
   // tier / not
   ctx.fillStyle = DIM;
   ctx.font = '22px "Share Tech Mono", monospace';
-  ctx.fillText(`Tier: ${data.airdrop.tier}${data.basename ? '  ·  Basename bonus' : ''}  —  tahmini, resmi değil`, 70, 300);
+  ctx.fillText(`Tier: ${data.airdrop.tier}${data.basename ? '  ·  Basename bonus' : ''}  —  estimated, not official`, 70, 300);
 
   // ayraç
   ctx.strokeStyle = FAINT;
@@ -1503,7 +1503,7 @@ async function shareResult(data){
   const fileName = 'base-airdrop-scan.png';
   const file = new File([blob], fileName, { type: 'image/png' });
 
-  const text = `Base cüzdanım için tahmini airdrop: ~${fmtNum(data.airdrop.amount,0)} $BASE (${data.airdrop.tier})\n\nSen de kontrol et 👇`;
+  const text = `Estimated airdrop for my Base wallet: ~${fmtNum(data.airdrop.amount,0)} $BASE (${data.airdrop.tier})\n\nCheck yours too 👇`;
 
   if(navigator.canShare && navigator.canShare({ files: [file] })){
     try{
@@ -1569,7 +1569,7 @@ async function startScan(address){
   const [, data] = await Promise.all([statusPromise, dataPromise]);
 
   if(!data || data.__error){
-    await addRow(`Error: Wallet verisi alınamadı.`, 'err');
+    await addRow(`Error: Could not retrieve wallet data.`, 'err');
     await addRow(`Detay: ${data.__msg}`, 'err');
     return;
   }
@@ -1582,7 +1582,7 @@ input.addEventListener('keydown', (e) => {
     const value = input.value.trim();
     if(!isValidAddress(value)){
       input.value = '';
-      input.placeholder = 'Geçersiz adres — tekrar deneyin';
+      input.placeholder = 'Invalid address — try again';
       return;
     }
     initAudio();
